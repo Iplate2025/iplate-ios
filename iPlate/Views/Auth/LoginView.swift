@@ -8,6 +8,7 @@
 
 import SwiftUI
 
+
 struct LoginView: View {
 
     @State private var email = ""
@@ -18,6 +19,12 @@ struct LoginView: View {
     @State private var infoMessage = ""
     @State private var showHomeScreen = false
     @State private var showOnboarding = false
+    @State private var didRetryLogoutAll = false
+    @State private var showLogoutOthersAlert = false
+    @State private var conflictUserId: String?
+    @State private var conflictSessionId: String?
+
+
 
     @StateObject private var viewModel = AuthViewModel()
 
@@ -165,7 +172,42 @@ struct LoginView: View {
             .padding(.bottom, 25)
         }
         .background(Color.white.ignoresSafeArea())
+        .alert(
+            "End other sessions?",
+            isPresented: $showLogoutOthersAlert
+        ) {
+            Button("Cancel", role: .cancel) {
+                didRetryLogoutAll = false
+            }
 
+            Button("Log out others", role: .destructive) {
+                guard
+                    let userId = conflictUserId,
+                    let sessionId = conflictSessionId
+                else {
+                    infoMessage = "Unable to resolve active session."
+                    return
+                }
+
+                infoMessage = "Logging out other sessions..."
+
+                AuthService.shared.logoutAllByUserId(
+                    userId: userId,
+                    sessionId: sessionId
+                ) { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success:
+                            infoMessage = "Other sessions terminated. Logging in..."
+                            self.handleLogin()   // 🔁 retry login once
+                        case .failure(let error):
+                            infoMessage = error.localizedDescription
+                            didRetryLogoutAll = false
+                        }
+                    }
+                }
+            }
+        }
         // Navigation destinations
         .fullScreenCover(isPresented: $showSignup) {
             SignupView()
@@ -181,10 +223,13 @@ struct LoginView: View {
         }
     }
 
+    
+
     // MARK: - Login flow (single endpoint checks verification and credentials)
     private func handleLogin() {
 
         infoMessage = ""
+        
 
         guard !email.isEmpty, !password.isEmpty else {
             infoMessage = "Please enter both email and password."
@@ -202,6 +247,29 @@ struct LoginView: View {
                 switch result {
 
                 case .success(let json):
+                    print("[LoginView] login response:", json)
+
+                    // 🔴 ACTIVE SESSION DETECTED
+                    if let message = json["message"] as? String,
+                       message.lowercased().contains("active session") {
+
+                        if let message = json["message"] as? String,
+                           message.lowercased().contains("active session") {
+
+                            guard let token = ProfileViewModel.shared.sessionToken else {
+                                infoMessage = "No active session token found. Please login again."
+                                return
+                            }
+
+                            infoMessage = "Active session detected. Logging out other devices..."
+                            didRetryLogoutAll = true
+
+                            handleLogoutAllAndRetry(using: token)
+                            return
+                        }
+                    }
+
+
 
                     print("[LoginView] login response:", json)
 
@@ -327,6 +395,26 @@ struct LoginView: View {
         alert.addAction(UIAlertAction(title: "OK", style: .cancel))
         presentAlert(alert)
     }
+    private func handleLogoutAllAndRetry(using token: String) {
+
+        AuthService.shared.logoutAllSessions(sessionToken: token) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    print("✅ All other sessions terminated")
+
+                    // retry login ONCE
+                    self.handleLogin()
+
+                case .failure(let error):
+                    self.infoMessage = "Logout-all failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+
+
 
     private func presentAlert(_ alert: UIAlertController) {
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -350,6 +438,7 @@ struct LoginView: View {
     private func handleGoogleLogin() {
         print("Google login tapped")
     }
+    
     
 
 }

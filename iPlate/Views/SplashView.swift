@@ -1,33 +1,23 @@
-//
-//  SplashView.swift
-//  iPlate
-//
-//  Created by Lukesh D on 21/10/25.
-//
-
 import SwiftUI
 
 struct SplashView: View {
 
     @State private var animateLogo = false
     @State private var fadeOut = false
+    @State private var nextScreen: NextScreen = .login
 
-    // Navigation states
-    @State private var showLogin = false
-    @State private var showHome = false
-    @State private var showOnboarding = false
-
-    @State private var isCheckingSession = false
+    enum NextScreen {
+        case login
+        case home
+    }
 
     var body: some View {
         ZStack {
-
             Color.white.ignoresSafeArea()
 
             VStack(spacing: 20) {
                 Spacer()
 
-                // MARK: - Logo
                 Image("splashLogo")
                     .resizable()
                     .scaledToFit()
@@ -42,7 +32,6 @@ struct SplashView: View {
 
                 Spacer()
 
-                // MARK: - Tagline
                 Text("Eat what you need")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(
@@ -57,95 +46,71 @@ struct SplashView: View {
             }
         }
         .onAppear {
-            startSplashFlow()
-        }
-
-        // MARK: - Navigation
-        .fullScreenCover(isPresented: $showLogin) {
-            LoginView()
-        }
-        .fullScreenCover(isPresented: $showHome) {
-            HomeView()
-        }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            NameInputView()
-        }
-    }
-
-    // MARK: - Splash + Session Logic
-    private func startSplashFlow() {
-
-        // Start logo animation
-        animateLogo = true
-
-        // Fade out animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            withAnimation(.easeOut(duration: 1.0)) {
-                fadeOut = true
-            }
-        }
-
-        // After splash → check session
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+            animateLogo = true
             checkSessionAndRoute()
         }
+        .fullScreenCover(isPresented: .constant(fadeOut)) {
+            if nextScreen == .home {
+                HomeView()
+            } else {
+                LoginView()
+            }
+        }
     }
 
-    // MARK: - Session Verification
+    // MARK: - SESSION CHECK LOGIC
     private func checkSessionAndRoute() {
 
-        // 1️⃣ No stored session → Login
-        guard let sessionToken = ProfileViewModel.shared.sessionToken else {
-            showLogin = true
-            return
-        }
+        // Small delay to show splash animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
 
-        // 2️⃣ Verify session
-        AuthService.shared.verifySession(sessionToken: sessionToken) { result in
-            DispatchQueue.main.async {
-                switch result {
+            guard let token = UserDefaults.standard.string(forKey: "session_token"),
+                  !token.isEmpty else {
+                routeTo(.login)
+                return
+            }
 
-                case .success(let json):
+            // Verify with backend
+            AuthService.shared.verifySession(sessionToken: token) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let json):
+                        print("[SplashView] verify-session:", json)
 
-                    guard
-                        let userId = json["user_id"] as? String,
+                        // Restore session
+                        let userId = json["user_id"] as? String
                         let email = json["email"] as? String
-                    else {
-                        ProfileViewModel.shared.clear()
-                        showLogin = true
-                        return
-                    }
+                        let username = json["username"] as? String
 
-                    // Restore session
-                    ProfileViewModel.shared.setUserSession(
-                        userID: userId,
-                        email: email,
-                        sessionToken: sessionToken
-                    )
-
-                    // 3️⃣ Check onboarding status (BACKEND AUTHORITATIVE)
-                    AuthService.shared.checkOnboardingStatus(sessionToken: sessionToken) { onboardResult in
-                        DispatchQueue.main.async {
-                            switch onboardResult {
-                            case .success(let isOnboarded):
-                                isOnboarded ? (showHome = true) : (showOnboarding = true)
-
-                            case .failure:
-                                showLogin = true
-                            }
+                        if let userId, let email {
+                            ProfileViewModel.shared.setUserSession(
+                                userID: userId,
+                                email: email,
+                                sessionToken: token
+                            )
+                            ProfileViewModel.shared.username = username
+                            routeTo(.home)
+                        } else {
+                            clearSessionAndGoLogin()
                         }
-                    }
 
-                case .failure:
-                    // Invalid / expired session
-                    ProfileViewModel.shared.clear()
-                    showLogin = true
+                    case .failure:
+                        clearSessionAndGoLogin()
+                    }
                 }
             }
         }
     }
-}
 
-#Preview {
-    SplashView()
+    private func routeTo(_ screen: NextScreen) {
+        withAnimation(.easeOut(duration: 0.8)) {
+            fadeOut = true
+            nextScreen = screen
+        }
+    }
+
+    private func clearSessionAndGoLogin() {
+        ProfileViewModel.shared.clearSession()
+        routeTo(.login)
+    }
 }

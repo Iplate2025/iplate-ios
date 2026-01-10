@@ -216,9 +216,11 @@ final class AuthService {
 
     // MARK: - Logout All Sessions (used only on active-session conflict)
     // POST /auth/logout-all { session_token }
+    // MARK: - Logout All Sessions
+    // POST /auth/logout-all
     func logoutAllSessions(
         sessionToken: String,
-        completion: @escaping (Result<[String: Any], Error>) -> Void
+        completion: @escaping (Result<String, Error>) -> Void
     ) {
         guard let url = URL(string: baseURL)?.appendingPathComponent("logout-all") else {
             completion(.failure(authError("Invalid logout-all URL")))
@@ -248,8 +250,55 @@ final class AuthService {
                 return
             }
 
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = json["message"] as? String {
+                completion(.success(message))
+            } else {
+                completion(.failure(self.authError("Invalid logout-all response")))
+            }
+        }.resume()
+    }
+    
+    // MARK: - Logout All by User ID + Session ID (conflict resolution)
+    func logoutAllByUserId(
+        userId: String,
+        sessionId: String,
+        completion: @escaping (Result<[String: Any], Error>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseURL)/logout-all") else {
+            completion(.failure(authError("Invalid logout-all URL")))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "user_id": userId,
+            "session_id": sessionId
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(self.authError("No data from logout-all")))
+                return
+            }
+
             if let txt = String(data: data, encoding: .utf8) {
-                print("[AuthService.logoutAllSessions] raw:", txt)
+                print("[AuthService.logoutAllByUserId] raw:", txt)
             }
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -259,6 +308,8 @@ final class AuthService {
             }
         }.resume()
     }
+
+
 
 
     // MARK: - Check Onboarding Status
@@ -312,8 +363,12 @@ final class AuthService {
     }
 
     // MARK: - Verify Session
-    // GET /auth/verify-session (X-Session-Token)
-    func verifySession(sessionToken: String, completion: @escaping (Result<[String:Any], Error>) -> Void) {
+    // GET /auth/verify-session
+    // Header: X-Session-Token
+    func verifySession(
+        sessionToken: String,
+        completion: @escaping (Result<[String: Any], Error>) -> Void
+    ) {
         guard let url = URL(string: "\(baseURL)/verify-session") else {
             completion(.failure(authError("Invalid verify-session URL")))
             return
@@ -325,12 +380,20 @@ final class AuthService {
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
-                completion(.failure(error)); return
+                completion(.failure(error))
+                return
             }
+
             guard let data = data else {
-                completion(.failure(self.authError("No data from verify-session"))); return
+                completion(.failure(self.authError("No data from verify-session")))
+                return
             }
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String:Any] {
+
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[AuthService.verifySession] raw:", txt)
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 completion(.success(json))
             } else {
                 completion(.failure(self.authError("Invalid verify-session response")))

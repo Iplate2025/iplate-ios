@@ -51,4 +51,15 @@ final class ProfileViewModel {
         UserDefaults.standard.removeObject(forKey: emailKey)
         UserDefaults.standard.removeObject(forKey: tokenKey)
     }
+    func clearSession() {
+            userID = nil
+            email = nil
+            sessionToken = nil
+            username = nil
+
+            UserDefaults.standard.removeObject(forKey: "session_token")
+            UserDefaults.standard.removeObject(forKey: "user_id")
+            UserDefaults.standard.removeObject(forKey: "user_email")
+        }
+    
 }
