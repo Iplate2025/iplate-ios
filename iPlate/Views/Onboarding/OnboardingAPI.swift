@@ -30,7 +30,7 @@ final class OnboardingAPI {
     // MARK: - set_username
     // POST /auth/set_username
     func setUsername(userId: String, username: String, completion: @escaping (Result<[String:Any], Error>) -> Void) {
-        guard let url = URL(string: "\(root)/auth/set_username") else {
+        guard let url = URL(string: root)?.appendingPathComponent("auth").appendingPathComponent("set_username") else {
             completion(.failure(makeError("Invalid set_username URL"))); return
         }
 
@@ -43,10 +43,16 @@ final class OnboardingAPI {
             completion(.failure(error)); return
         }
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let e = error { completion(.failure(e)); return }
             guard let data = data else { completion(.failure(self.makeError("No data from set_username"))); return }
-            if let txt = String(data: data, encoding: .utf8) { print("[OnboardingAPI.setUsername] raw:", txt) }
+            if let http = response as? HTTPURLResponse {
+                print("[OnboardingAPI] status:", http.statusCode)
+                print("[OnboardingAPI] headers:", http.allHeaderFields)
+            }
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[OnboardingAPI] raw body:", txt)
+            }
 
             if let dict = self.jsonDataToDictionary(data) {
                 completion(.success(dict))
@@ -59,7 +65,7 @@ final class OnboardingAPI {
     // MARK: - update user details (PUT /user/details)
     // Headers: X-User-ID, X-User-Email
     func updateUserDetails(userId: String, userEmail: String, details: [String:Any], completion: @escaping (Result<[String:Any], Error>) -> Void) {
-        guard let url = URL(string: "\(root)/user/details") else {
+        guard let url = URL(string: root)?.appendingPathComponent("user").appendingPathComponent("details") else {
             completion(.failure(makeError("Invalid user/details URL"))); return
         }
         var request = URLRequest(url: url)
@@ -72,10 +78,16 @@ final class OnboardingAPI {
             completion(.failure(error)); return
         }
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let e = error { completion(.failure(e)); return }
             guard let data = data else { completion(.failure(self.makeError("No data from user/details"))); return }
-            if let txt = String(data: data, encoding: .utf8) { print("[OnboardingAPI.updateUserDetails] raw:", txt) }
+            if let http = response as? HTTPURLResponse {
+                print("[OnboardingAPI] status:", http.statusCode)
+                print("[OnboardingAPI] headers:", http.allHeaderFields)
+            }
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[OnboardingAPI] raw body:", txt)
+            }
 
             if let dict = self.jsonDataToDictionary(data) {
                 completion(.success(dict))
@@ -88,7 +100,7 @@ final class OnboardingAPI {
     // MARK: - check onboard (POST /auth/onboard)
     // Body: { "session_token": "..." } OR you could use GET with user_id depending on backend
     func checkOnboard(sessionToken: String, completion: @escaping (Result<[String:Any], Error>) -> Void) {
-        guard let url = URL(string: "\(root)/auth/onboard") else {
+        guard let url = URL(string: root)?.appendingPathComponent("auth").appendingPathComponent("onboard") else {
             completion(.failure(makeError("Invalid /auth/onboard URL"))); return
         }
         var request = URLRequest(url: url)
@@ -100,15 +112,24 @@ final class OnboardingAPI {
             completion(.failure(error)); return
         }
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let e = error { completion(.failure(e)); return }
             guard let data = data else { completion(.failure(self.makeError("No data from /auth/onboard"))); return }
-            if let txt = String(data: data, encoding: .utf8) { print("[OnboardingAPI.checkOnboard] raw:", txt) }
+            if let http = response as? HTTPURLResponse {
+                print("[OnboardingAPI] status:", http.statusCode)
+                print("[OnboardingAPI] headers:", http.allHeaderFields)
+            }
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[OnboardingAPI] raw body:", txt)
+            }
 
             if let dict = self.jsonDataToDictionary(data) {
                 completion(.success(dict))
+            } else if let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+                completion(.failure(self.makeError("Unexpected JSON type (array) from /auth/onboard: \(arr)")))
             } else {
-                completion(.failure(self.makeError("Invalid JSON from /auth/onboard")))
+                let snippet = String(data: data, encoding: .utf8) ?? "<non-UTF8 data>"
+                completion(.failure(self.makeError("Invalid JSON from /auth/onboard. Raw: \(snippet)")))
             }
         }.resume()
     }
