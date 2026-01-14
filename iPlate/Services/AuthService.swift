@@ -214,15 +214,14 @@ final class AuthService {
     }
 
 
-    // MARK: - Logout All Sessions (used only on active-session conflict)
-    // POST /auth/logout-all { session_token }
-    // MARK: - Logout All Sessions
-    // POST /auth/logout-all
-    func logoutAllSessions(
-        sessionToken: String,
-        completion: @escaping (Result<String, Error>) -> Void
-    ) {
-        guard let url = URL(string: baseURL)?.appendingPathComponent("logout-all") else {
+
+    // MARK: - Logout All Sessions (CORRECT)
+    // MARK: - Logout all sessions using USER ID
+    // POST /auth/logout-all { user_id }
+    func logoutAllSessions(userId: String,
+                           completion: @escaping (Result<[String: Any], Error>) -> Void) {
+
+        guard let url = URL(string: "\(baseURL)/logout-all") else {
             completion(.failure(authError("Invalid logout-all URL")))
             return
         }
@@ -231,7 +230,10 @@ final class AuthService {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body = ["session_token": sessionToken]
+        let body: [String: Any] = [
+            "user_id": userId
+        ]
+
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
@@ -250,19 +252,24 @@ final class AuthService {
                 return
             }
 
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let message = json["message"] as? String {
-                completion(.success(message))
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[AuthService.logoutAllSessions] raw:", txt)
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                completion(.success(json))
             } else {
                 completion(.failure(self.authError("Invalid logout-all response")))
             }
         }.resume()
     }
+
+
     
     // MARK: - Logout All by User ID + Session ID (conflict resolution)
     func logoutAllByUserId(
         userId: String,
-        sessionId: String,
+        
         completion: @escaping (Result<[String: Any], Error>) -> Void
     ) {
         guard let url = URL(string: "\(baseURL)/logout-all") else {
@@ -275,8 +282,7 @@ final class AuthService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: Any] = [
-            "user_id": userId,
-            "session_id": sessionId
+            "user_id": userId
         ]
 
         do {
@@ -328,12 +334,7 @@ final class AuthService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body = ["session_token": sessionToken]
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        } catch {
-            completion(.failure(error))
-            return
-        }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
@@ -342,25 +343,55 @@ final class AuthService {
             }
 
             guard let data = data else {
-                completion(.failure(self.authError("No data from onboard endpoint")))
+                completion(.failure(self.authError("No data from onboard")))
                 return
             }
 
-            if let txt = String(data: data, encoding: .utf8) {
-                print("[AuthService.checkOnboardingStatus] raw:", txt)
-            }
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let onboarded =
-                    (json["is_onboarded"] as? Bool) ??
-                    (json["onboarded"] as? Bool) {
-
+            if let onboarded = json?["is_onboarded"] as? Bool {
                 completion(.success(onboarded))
             } else {
-                completion(.failure(self.authError("Invalid onboarding response")))
+                completion(.failure(self.authError("Invalid onboard response")))
             }
         }.resume()
     }
+    
+    // MARK: - Complete onboarding
+    // POST /auth/onboard { session_token }
+    func completeOnboarding(sessionToken: String,
+                            completion: @escaping (Result<Bool, Error>) -> Void) {
+
+        guard let url = URL(string: "\(baseURL)/onboard") else {
+            completion(.failure(authError("Invalid onboard URL")))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = ["session_token": sessionToken]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let isOnboarded = json["is_onboarded"] as? Bool
+            else {
+                completion(.failure(self.authError("Invalid onboard response")))
+                return
+            }
+
+            completion(.success(isOnboarded))
+        }.resume()
+    }
+
 
     // MARK: - Verify Session
     // GET /auth/verify-session

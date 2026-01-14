@@ -163,13 +163,39 @@ struct MealTimingView: View {
         vm.updateUserDetails(userId: userId, userEmail: email, details: details) { result in
             DispatchQueue.main.async {
                 isSaving = false
+
                 switch result {
                 case .success:
-                    goToHome = true
+                    // ✅ FINAL STEP → MARK ONBOARDING COMPLETE (BACKEND)
+                    completeOnboardingAndProceed()
+
                 case .failure(let error):
                     infoMessage = error.localizedDescription
                 }
             }
         }
     }
+    /// ✅ Marks onboarding complete in backend
+    private func completeOnboardingAndProceed() {
+        guard let token = ProfileViewModel.shared.sessionToken else {
+            infoMessage = "Session expired. Please login again."
+            return
+        }
+
+        AuthService.shared.completeOnboarding(sessionToken: token) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(true):
+                    goToHome = true
+
+                case .success(false):
+                    infoMessage = "Onboarding not completed. Please try again."
+
+                case .failure(let error):
+                    infoMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
 }

@@ -192,8 +192,7 @@ struct LoginView: View {
                 infoMessage = "Logging out other sessions..."
 
                 AuthService.shared.logoutAllByUserId(
-                    userId: userId,
-                    sessionId: sessionId
+                    userId: userId
                 ) { result in
                     DispatchQueue.main.async {
                         switch result {
@@ -247,27 +246,39 @@ struct LoginView: View {
                 switch result {
 
                 case .success(let json):
-                    print("[LoginView] login response:", json)
 
-                    // 🔴 ACTIVE SESSION DETECTED
                     if let message = json["message"] as? String,
                        message.lowercased().contains("active session") {
 
-                        if let message = json["message"] as? String,
-                           message.lowercased().contains("active session") {
-
-                            guard let token = ProfileViewModel.shared.sessionToken else {
-                                infoMessage = "No active session token found. Please login again."
-                                return
-                            }
-
-                            infoMessage = "Active session detected. Logging out other devices..."
-                            didRetryLogoutAll = true
-
-                            handleLogoutAllAndRetry(using: token)
+                        // prevent infinite retry loop
+                        guard !didRetryLogoutAll else {
+                            infoMessage = "Unable to resolve active session. Please try again later."
                             return
                         }
+
+                        guard let userId = json["user_id"] as? String else {
+                            infoMessage = "Active session exists but user could not be identified."
+                            return
+                        }
+
+                        didRetryLogoutAll = true
+                        infoMessage = "Logging out from other devices..."
+
+                        AuthService.shared.logoutAllSessions(userId: userId) { result in
+                            DispatchQueue.main.async {
+                                switch result {
+                                case .success:
+                                    print("✅ All other sessions terminated. Retrying login…")
+                                    handleLogin()   // retry login ONCE
+
+                                case .failure(let error):
+                                    infoMessage = error.localizedDescription
+                                }
+                            }
+                        }
+                        return
                     }
+
 
 
 
@@ -395,23 +406,26 @@ struct LoginView: View {
         alert.addAction(UIAlertAction(title: "OK", style: .cancel))
         presentAlert(alert)
     }
-    private func handleLogoutAllAndRetry(using token: String) {
+    private func handleLogoutAllAndRetry(userId: String, sessionToken: String) {
 
-        AuthService.shared.logoutAllSessions(sessionToken: token) { result in
+        AuthService.shared.logoutAllSessions(
+            userId: userId
+        ) { result in
+
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    print("✅ All other sessions terminated")
-
-                    // retry login ONCE
-                    self.handleLogin()
+                    print("✅ All sessions terminated")
+                    self.handleLogin() // retry login ONCE
 
                 case .failure(let error):
-                    self.infoMessage = "Logout-all failed: \(error.localizedDescription)"
+                    self.infoMessage = error.localizedDescription
                 }
             }
         }
     }
+
+
 
 
 
