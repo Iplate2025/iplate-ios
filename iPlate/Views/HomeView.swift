@@ -513,9 +513,25 @@ struct NutrientBar: View {
 }
 
 // MARK: - Meal Card View
+// MARK: - Meal Card View
 struct MealCardView: View {
     let meal: [String: Any]
     let index: Int
+    @State private var showDetail = false
+
+    private var mealId: String {
+        // Try multiple possible keys for meal ID
+        if let id = meal["_id"] as? String, !id.isEmpty {
+            return id
+        }
+        if let id = meal["id"] as? String, !id.isEmpty {
+            return id
+        }
+        if let id = meal["meal_id"] as? String, !id.isEmpty {
+            return id
+        }
+        return ""
+    }
 
     private var mealTitle: String {
         if let title = meal["meal_title"] as? String, !title.isEmpty {
@@ -543,7 +559,6 @@ struct MealCardView: View {
         if let type = meal["meal_type"] as? String, type != "exception" {
             return type.capitalized
         }
-        // Assign based on time or index
         let types = ["Breakfast", "Lunch", "Snack", "Dinner"]
         return types[index % types.count]
     }
@@ -559,44 +574,50 @@ struct MealCardView: View {
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
+        Button {
+            // Debug: Print all meal keys to find the correct ID field
+            print("🔵 Meal dictionary keys: \(meal.keys)")
+            print("🔵 Full meal data: \(meal)")
+            print("🔵 Extracted mealId: \(mealId)")
+            
+            if !mealId.isEmpty {
+                showDetail = true
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(mealTitle)
                         .font(.headline)
                         .fontWeight(.semibold)
+                        .foregroundColor(.primary)
 
-                    if totalWeight > 0 {
-                        Text("(\(totalWeight)g)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+                    Text("\(calories) cal • \(totalWeight)g")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
 
-                Text("\(calories) Cal")
+                Spacer()
+
+                Text("• \(mealType)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(mealTypeColor)
             }
-
-            Spacer()
-
-            Text("• \(mealType)")
-                .font(.subheadline)
-                .foregroundColor(mealTypeColor)
-                .fontWeight(.semibold)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.5), lineWidth: 1.5)
-        )
+        .buttonStyle(PlainButtonStyle())
+        .fullScreenCover(isPresented: $showDetail) {
+            MealDetailView(mealId: mealId)
+        }
     }
 }
-
 // MARK: - Custom Tab Bar
 struct CustomTabBar: View {
     @Binding var selectedTab: Int
