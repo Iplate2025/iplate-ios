@@ -93,9 +93,9 @@ struct MoodTrackerView: View {
 //        }
 //
 //        // 4. Happy, Tired & Anxious
-////        if positiveAffect >= 4 && fatigue >= 4 {
-////            return "Happy, Tired & Anxious"
-////        }
+//        if positiveAffect <= 2 && fatigue >= 4 {
+//            return "Tired & Anxious"
+//        }
 //
 //        // 5. Happy
 //        if positiveAffect >= 4 && negativeAffect <= 2 {
@@ -404,94 +404,160 @@ struct MoodChartView: View {
     let labels = ["Calm", "Focus", "Energy", "Fatigue", "Excited"]
 
     var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            let maxValue: Double = 5
-            let spacing = width / CGFloat(data.count)
-
+        VStack(spacing: 0) {
+            // Chart container with border
             ZStack {
+                // Background grid with dotted lines
                 VStack(spacing: 0) {
-                    ForEach(0...5, id: \.self) { i in
-                        HStack {
+                    ForEach(0..<6, id: \.self) { i in
+                        HStack(spacing: 0) {
                             Text("\(5 - i)")
                                 .font(.caption2)
                                 .foregroundColor(.gray)
-                                .frame(width: 20)
-
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(height: 1)
+                                .frame(width: 16, alignment: .trailing)
+                            
+                            // Dotted line
+                            GeometryReader { geo in
+                                Path { path in
+                                    path.move(to: CGPoint(x: 8, y: 0))
+                                    path.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                                }
+                                .stroke(style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                                .foregroundColor(Color.gray.opacity(0.3))
+                            }
+                            .frame(height: 1)
                         }
                         if i < 5 {
                             Spacer()
                         }
                     }
                 }
-
-                Path { path in
-                    let startX = spacing / 2
-                    path.move(to: CGPoint(x: startX, y: height))
-
-                    for (index, value) in data.enumerated() {
-                        let x = startX + spacing * CGFloat(index)
-                        let y = height - (height * CGFloat(value) / CGFloat(maxValue))
-
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
+                .padding(.trailing, 8)
+                
+                // Chart area
+                GeometryReader { geometry in
+                    let chartWidth = geometry.size.width - 28
+                    let chartHeight = geometry.size.height
+                    let maxValue: Double = 5
+                    let pointSpacing = chartWidth / CGFloat(data.count - 1)
+                    let startX: CGFloat = 28
+                    
+                    // Get points for smooth curve
+                    let points = data.enumerated().map { index, value -> CGPoint in
+                        let x = startX + pointSpacing * CGFloat(index)
+                        let y = chartHeight - (chartHeight * CGFloat(value) / CGFloat(maxValue))
+                        return CGPoint(x: x, y: y)
                     }
-
-                    path.addLine(to: CGPoint(x: startX + spacing * CGFloat(data.count - 1), y: height))
-                    path.addLine(to: CGPoint(x: startX, y: height))
-                }
-                .fill(
-                    LinearGradient(
-                        colors: [Color.orange.opacity(0.4), Color.orange.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
+                    
+                    // Smooth filled area using Catmull-Rom
+                    Path { path in
+                        guard points.count > 1 else { return }
+                        
+                        path.move(to: CGPoint(x: points[0].x, y: chartHeight))
+                        path.addLine(to: points[0])
+                        
+                        // Use Catmull-Rom spline for smooth curves
+                        for i in 0..<points.count - 1 {
+                            let p0 = i > 0 ? points[i - 1] : points[0]
+                            let p1 = points[i]
+                            let p2 = points[i + 1]
+                            let p3 = i + 2 < points.count ? points[i + 2] : points[i + 1]
+                            
+                            // Calculate control points
+                            let cp1x = p1.x + (p2.x - p0.x) / 6
+                            let cp1y = p1.y + (p2.y - p0.y) / 6
+                            let cp2x = p2.x - (p3.x - p1.x) / 6
+                            let cp2y = p2.y - (p3.y - p1.y) / 6
+                            
+                            path.addCurve(
+                                to: p2,
+                                control1: CGPoint(x: cp1x, y: cp1y),
+                                control2: CGPoint(x: cp2x, y: cp2y)
+                            )
+                        }
+                        
+                        path.addLine(to: CGPoint(x: points[points.count - 1].x, y: chartHeight))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.orange.opacity(0.4), Color.orange.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                     )
-                )
-
-                Path { path in
-                    let startX = spacing / 2
-
-                    for (index, value) in data.enumerated() {
-                        let x = startX + spacing * CGFloat(index)
-                        let y = height - (height * CGFloat(value) / CGFloat(maxValue))
-
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
+                    
+                    // Smooth line using Catmull-Rom
+                    Path { path in
+                        guard points.count > 1 else { return }
+                        
+                        path.move(to: points[0])
+                        
+                        for i in 0..<points.count - 1 {
+                            let p0 = i > 0 ? points[i - 1] : points[0]
+                            let p1 = points[i]
+                            let p2 = points[i + 1]
+                            let p3 = i + 2 < points.count ? points[i + 2] : points[i + 1]
+                            
+                            let cp1x = p1.x + (p2.x - p0.x) / 6
+                            let cp1y = p1.y + (p2.y - p0.y) / 6
+                            let cp2x = p2.x - (p3.x - p1.x) / 6
+                            let cp2y = p2.y - (p3.y - p1.y) / 6
+                            
+                            path.addCurve(
+                                to: p2,
+                                control1: CGPoint(x: cp1x, y: cp1y),
+                                control2: CGPoint(x: cp2x, y: cp2y)
+                            )
                         }
                     }
-                }
-                .stroke(Color.orange, lineWidth: 3)
-
-                ForEach(data.indices, id: \.self) { index in
-                    let x = spacing / 2 + spacing * CGFloat(index)
-                    let y = height - (height * CGFloat(data[index]) / CGFloat(maxValue))
-
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 12, height: 12)
-                        .position(x: x, y: y)
-                }
-
-                HStack(spacing: 0) {
-                    ForEach(labels, id: \.self) { label in
-                        Text(label)
-                            .font(.caption)
-                            .frame(maxWidth: .infinity)
+                    .stroke(Color.orange, lineWidth: 2)
+                    
+                    // Data points with white fill and orange border
+                    ForEach(data.indices, id: \.self) { index in
+                        let x = startX + pointSpacing * CGFloat(index)
+                        let y = chartHeight - (chartHeight * CGFloat(data[index]) / CGFloat(maxValue))
+                        
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 8, height: 8)
+                            .position(x: x, y: y)
                     }
                 }
-                .position(x: width / 2, y: height + 20)
             }
-            .padding(.leading, 30)
-            .padding(.bottom, 60)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    .background(Color.white.cornerRadius(12))
+            )
+            
+            // X-axis labels
+            HStack(spacing: 0) {
+                Spacer().frame(width: 28)
+                ForEach(labels, id: \.self) { label in
+                    Text(label)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.top, 8)
+            
+            // Legend
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.orange)
+                    .frame(width: 12, height: 3)
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 6, height: 6)
+                Text("Mood values")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding(.top, 8)
         }
     }
 }

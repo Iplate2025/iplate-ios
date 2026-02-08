@@ -1,7 +1,13 @@
 import SwiftUI
 import PhotosUI
+import AVFoundation
+import CoreBluetooth
+import Combine
 
 struct HomeView: View {
+    @ObservedObject private var profileViewModel = ProfileViewModel.shared
+    @StateObject private var bluetoothManager = BluetoothManager()
+    
     @State private var isLoggingOut = false
     @State private var logoutError: String?
     @State private var goToLogin = false
@@ -24,6 +30,12 @@ struct HomeView: View {
     // Camera states
     @State private var showCamera = false
     @State private var showImageSourcePicker = false
+    @State private var showCameraPermissionAlert = false
+    @State private var cameraPermissionStatus: AVAuthorizationStatus = .notDetermined
+    @State private var weightsInput: String = ""
+    
+    // Bluetooth states
+    @State private var showBluetoothPermissionAlert = false
 
     // Nutrition totals for the selected date
     @State private var totalCalories: Double = 0
@@ -40,7 +52,11 @@ struct HomeView: View {
     private let goalFiber: Double = 40
 
     private var userName: String {
-        ProfileViewModel.shared.email?.components(separatedBy: "@").first?.capitalized ?? "User"
+        // Use username or email from ProfileViewModel
+        if let username = profileViewModel.username, !username.isEmpty {
+            return username.capitalized
+        }
+        return profileViewModel.email?.components(separatedBy: "@").first?.capitalized ?? "User"
     }
 
     private var greeting: String {
@@ -74,22 +90,40 @@ struct HomeView: View {
             // Custom Tab Bar with centered FAB
             CustomTabBar(
                 selectedTab: $selectedTab,
-                onAddTapped: { showImageSourcePicker = true }
+                onAddTapped: {
+                    // Request Bluetooth permission when + is tapped
+                    bluetoothManager.requestPermission()
+                    showImageSourcePicker = true
+                }
             )
         }
         .confirmationDialog("Choose Image Source", isPresented: $showImageSourcePicker, titleVisibility: .visible) {
             Button("Take Photo") {
-                showCamera = true
+                checkCameraPermissionAndOpen()
             }
             Button("Choose from Library") {
                 showUploadSheet = true
             }
             Button("Cancel", role: .cancel) {}
         }
+        .alert("Camera Access Required", isPresented: $showCameraPermissionAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please enable camera access in Settings to take photos of your meals.")
+        }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraView(capturedImage: $pickedImage, onCapture: {
+            FoodCameraView(capturedImage: $pickedImage, onCapture: {
                 showCamera = false
-                showUploadSheet = true
+                if pickedImage != nil {
+                    showUploadSheet = true
+                }
+            }, onDismiss: {
+                showCamera = false
             })
         }
         .sheet(isPresented: $showUploadSheet) {
@@ -98,12 +132,14 @@ struct HomeView: View {
                 pickedImage: $pickedImage,
                 isUploading: $isUploading,
                 uploadMessage: $uploadMessage,
+                weightsInput: $weightsInput,
                 onUpload: uploadPickedImage,
                 onDismiss: {
                     showUploadSheet = false
                     pickedImage = nil
                     pickedItem = nil
                     uploadMessage = nil
+                    weightsInput = ""
                     fetchMeals(for: selectedDate)
                 }
             )
@@ -290,13 +326,28 @@ struct HomeView: View {
         isUploading = true
         uploadMessage = nil
 
-        let weights: [Double] = [100]
+        // Parse weights from user input - comma or space separated
+        var weights: [Double] = []
+        let weightComponents = weightsInput
+            .replacingOccurrences(of: " ", with: ",")
+            .split(separator: ",")
+            .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        
+        if weightComponents.isEmpty {
+            // Default weight if no input provided
+            weights = [100.0]
+        } else {
+            weights = weightComponents
+        }
+        
+        print("📤 Uploading meal with weights: \(weights)")
 
         MealService.shared.uploadMeal(image: image, weights: weights) { result in
             DispatchQueue.main.async {
                 self.isUploading = false
                 switch result {
                 case .success(let json):
+                    print("📥 Upload response: \(json)")
                     if let message = json["message"] as? String {
                         self.uploadMessage = message
                     } else {
@@ -307,9 +358,11 @@ struct HomeView: View {
                         self.showUploadSheet = false
                         self.pickedImage = nil
                         self.pickedItem = nil
+                        self.weightsInput = ""
                         self.fetchMeals(for: self.selectedDate)
                     }
                 case .failure(let error):
+                    print("❌ Upload failed: \(error)")
                     self.uploadMessage = "Upload failed: \(error.localizedDescription)"
                 }
             }
@@ -374,9 +427,260 @@ struct HomeView: View {
         totalFat = 0
         totalFiber = 0
     }
+
+    // MARK: - Camera Permission
+    private func checkCameraPermissionAndOpen() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        
+        switch status {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        showCameraPermissionAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showCameraPermissionAlert = true
+        @unknown default:
+            showCameraPermissionAlert = true
+        }
+    }
 }
 
-// MARK: - Camera View
+// MARK: - Food Camera View (Custom UI matching design)
+struct FoodCameraView: View {
+    @Binding var capturedImage: UIImage?
+    var onCapture: () -> Void
+    var onDismiss: () -> Void
+    
+    @State private var flashEnabled = false
+    @State private var showCameraPreview = true
+    
+    var body: some View {
+        ZStack {
+            // Camera Preview
+            CameraPreviewView(capturedImage: $capturedImage, flashEnabled: $flashEnabled)
+                .ignoresSafeArea()
+            
+            // Overlay UI
+            VStack {
+                // Top bar with back and flash buttons
+                HStack {
+                    Button(action: onDismiss) {
+                        Image(systemName: "arrow.left")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: { flashEnabled.toggle() }) {
+                        Image(systemName: flashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                
+                Spacer()
+                
+                // Center circle guide
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            style: StrokeStyle(lineWidth: 3, dash: [10, 5])
+                        )
+                        .foregroundColor(.orange)
+                        .frame(width: 280, height: 280)
+                }
+                
+                Spacer()
+                
+                // Bottom section with instruction and capture button
+                VStack(spacing: 24) {
+                    Text("Place food in the circle!")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                    
+                    // Capture button
+                    Button(action: {
+                        // Capture happens via CameraPreviewView
+                        NotificationCenter.default.post(name: .capturePhoto, object: nil)
+                    }) {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.white, lineWidth: 4)
+                                .frame(width: 80, height: 80)
+                            
+                            Circle()
+                                .fill(Color.orange.opacity(0.8))
+                                .frame(width: 64, height: 64)
+                        }
+                    }
+                }
+                .padding(.bottom, 50)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .photoCaptured)) { _ in
+            if capturedImage != nil {
+                onCapture()
+            }
+        }
+    }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let capturePhoto = Notification.Name("capturePhoto")
+    static let photoCaptured = Notification.Name("photoCaptured")
+}
+
+// MARK: - Camera Preview View (AVFoundation based)
+struct CameraPreviewView: UIViewControllerRepresentable {
+    @Binding var capturedImage: UIImage?
+    @Binding var flashEnabled: Bool
+    
+    func makeUIViewController(context: Context) -> CameraViewController {
+        let controller = CameraViewController()
+        controller.delegate = context.coordinator
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: CameraViewController, context: Context) {
+        uiViewController.flashEnabled = flashEnabled
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, CameraViewControllerDelegate {
+        let parent: CameraPreviewView
+        
+        init(_ parent: CameraPreviewView) {
+            self.parent = parent
+        }
+        
+        func didCapturePhoto(_ image: UIImage) {
+            DispatchQueue.main.async {
+                self.parent.capturedImage = image
+                NotificationCenter.default.post(name: .photoCaptured, object: nil)
+            }
+        }
+    }
+}
+
+// MARK: - Camera View Controller Delegate
+protocol CameraViewControllerDelegate: AnyObject {
+    func didCapturePhoto(_ image: UIImage)
+}
+
+// MARK: - Camera View Controller
+class CameraViewController: UIViewController {
+    weak var delegate: CameraViewControllerDelegate?
+    var flashEnabled = false
+    
+    private var captureSession: AVCaptureSession?
+    private var photoOutput: AVCapturePhotoOutput?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var captureObserver: NSObjectProtocol?
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupCamera()
+        
+        // Listen for capture notification
+        captureObserver = NotificationCenter.default.addObserver(
+            forName: .capturePhoto,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.capturePhoto()
+        }
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+    }
+    
+    deinit {
+        if let observer = captureObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        captureSession?.stopRunning()
+    }
+    
+    private func setupCamera() {
+        let session = AVCaptureSession()
+        session.sessionPreset = .photo
+        
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let input = try? AVCaptureDeviceInput(device: camera) else {
+            print("Failed to access camera")
+            return
+        }
+        
+        if session.canAddInput(input) {
+            session.addInput(input)
+        }
+        
+        let output = AVCapturePhotoOutput()
+        if session.canAddOutput(output) {
+            session.addOutput(output)
+        }
+        
+        photoOutput = output
+        captureSession = session
+        
+        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.frame = view.bounds
+        view.layer.addSublayer(previewLayer)
+        self.previewLayer = previewLayer
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            session.startRunning()
+        }
+    }
+    
+    func capturePhoto() {
+        guard let photoOutput = photoOutput else { return }
+        
+        let settings = AVCapturePhotoSettings()
+        
+        if let device = AVCaptureDevice.default(for: .video),
+           device.hasFlash {
+            settings.flashMode = flashEnabled ? .on : .off
+        }
+        
+        photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+}
+
+extension CameraViewController: AVCapturePhotoCaptureDelegate {
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        guard error == nil,
+              let imageData = photo.fileDataRepresentation(),
+              let image = UIImage(data: imageData) else {
+            print("Error capturing photo: \(error?.localizedDescription ?? "unknown")")
+            return
+        }
+        
+        delegate?.didCapturePhoto(image)
+    }
+}
+
+// MARK: - Legacy Camera View (kept for compatibility)
 struct CameraView: UIViewControllerRepresentable {
     @Binding var capturedImage: UIImage?
     var onCapture: () -> Void
@@ -693,10 +997,9 @@ struct UploadSheetView: View {
     @Binding var pickedImage: UIImage?
     @Binding var isUploading: Bool
     @Binding var uploadMessage: String?
+    @Binding var weightsInput: String
     let onUpload: () -> Void
     let onDismiss: () -> Void
-
-    @State private var weightText = ""
 
     var body: some View {
         NavigationStack {
@@ -753,9 +1056,12 @@ struct UploadSheetView: View {
                     Text("Food weights (grams)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    TextField("e.g., 150, 200, 100", text: $weightText)
+                    TextField("e.g., 150, 200, 100, 120", text: $weightsInput)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.numbersAndPunctuation)
+                    Text("Enter up to 4 weights separated by commas (one per food item)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
                 }
 
                 // Upload Button
@@ -826,6 +1132,49 @@ struct DatePickerSheet: View {
                         .foregroundColor(.orange)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Bluetooth Manager
+class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate {
+    private var centralManager: CBCentralManager?
+    @Published var isBluetoothAuthorized = false
+    @Published var bluetoothState: CBManagerState = .unknown
+    
+    override init() {
+        super.init()
+    }
+    
+    func requestPermission() {
+        // Initialize CBCentralManager to trigger the permission popup
+        if centralManager == nil {
+            centralManager = CBCentralManager(delegate: self, queue: nil, options: [CBCentralManagerOptionShowPowerAlertKey: true])
+        }
+    }
+    
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        bluetoothState = central.state
+        
+        switch central.state {
+        case .poweredOn:
+            print("✅ Bluetooth is powered on and ready")
+            isBluetoothAuthorized = true
+        case .poweredOff:
+            print("⚠️ Bluetooth is powered off")
+            isBluetoothAuthorized = false
+        case .unauthorized:
+            print("❌ Bluetooth access is unauthorized")
+            isBluetoothAuthorized = false
+        case .unsupported:
+            print("❌ Bluetooth is not supported on this device")
+            isBluetoothAuthorized = false
+        case .resetting:
+            print("⚠️ Bluetooth is resetting")
+        case .unknown:
+            print("⚠️ Bluetooth state is unknown")
+        @unknown default:
+            print("⚠️ Unknown Bluetooth state")
         }
     }
 }
