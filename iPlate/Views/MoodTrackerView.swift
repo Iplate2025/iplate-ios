@@ -14,7 +14,7 @@ struct MoodTrackerView: View {
     @State private var moodValues = MoodInput(calm: 1, focus: 1, energized: 1, fatigue: 1, excited:1)
     @State private var suggestions: [MoodSuggestion] = []
     @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var errorMessage: String? 
 
     var body: some View {
         ZStack {
@@ -601,6 +601,7 @@ struct MoodSuggestionsView: View {
                                     toggleLike(foodName: suggestion.foodName)
                                 }
                             )
+                            .id("\(suggestion.id)-\(likedFoodNames.contains(suggestion.foodName))")
                         }
                     }
                     .padding(.horizontal, 24)
@@ -646,9 +647,13 @@ struct MoodSuggestionsView: View {
     }
     
     private func toggleLike(foodName: String) {
-        guard !isLoadingLikes else { return }
+        guard !isLoadingLikes else {
+            print("⚠️ Already processing a like action")
+            return
+        }
         
         let isCurrentlyLiked = likedFoodNames.contains(foodName)
+        print("🔄 Toggling like for: \(foodName), currently liked: \(isCurrentlyLiked)")
         isLoadingLikes = true
         
         // Use ProfileViewModel to handle API and State
@@ -663,6 +668,7 @@ struct MoodSuggestionsView: View {
                         likedFoodNames.insert(foodName)
                         print("✅ Added \(foodName) to liked foods")
                     }
+                    print("📊 Current liked foods: \(likedFoodNames)")
                 } else {
                     print("❌ Failed to toggle like for \(foodName)")
                 }

@@ -1216,6 +1216,7 @@ struct SearchView: View {
                                         isFavorite: isFoodLiked(food.foodName),
                                         onFavorite: { toggleFavorite(food) }
                                     )
+                                    .id("\(food.id)-\(isFoodLiked(food.foodName))")
                                 }
                             }
                             .padding(.horizontal)
@@ -1245,6 +1246,7 @@ struct SearchView: View {
                                                 onFavorite: { toggleFavorite(food) },
                                                 isFavorite: isFoodLiked(food.foodName)
                                             )
+                                            .id("\(food.id)-\(isFoodLiked(food.foodName))")
                                         }
                                     }
                                     .padding(.horizontal)
@@ -1304,6 +1306,7 @@ struct SearchView: View {
                                             isFavorite: isFoodLiked(food.foodName),
                                             onFavorite: { toggleFavorite(food) }
                                         )
+                                        .id("\(food.id)-\(isFoodLiked(food.foodName))")
                                     }
                                 }
                                 .padding(.horizontal)
@@ -1344,6 +1347,9 @@ struct SearchView: View {
         }
         .onChange(of: selectedFilter) { _, _ in
             showAllFeatured = false
+        }
+        .onChange(of: profileViewModel.likedFoods) { oldValue, newValue in
+            print("🔄 Liked foods changed from \(oldValue.count) to \(newValue.count) items")
         }
     }
 
@@ -1413,7 +1419,15 @@ struct SearchView: View {
     }
 
     private func toggleFavorite(_ food: FoodItem) {
-        profileViewModel.toggleLikedFood(food.foodName)
+        print("🔄 Toggling like for: \(food.foodName)")
+        profileViewModel.toggleLikedFood(food.foodName) { success in
+            if success {
+                print("✅ Successfully toggled like for: \(food.foodName)")
+                // ProfileViewModel's @Published likedFoods will trigger UI update
+            } else {
+                print("❌ Failed to toggle like for: \(food.foodName)")
+            }
+        }
     }
 }
 
