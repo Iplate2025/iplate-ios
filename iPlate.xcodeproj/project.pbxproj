@@ -400,8 +400,6 @@
                 DEVELOPMENT_TEAM = FDU2SPU2Q5;
                 ENABLE_PREVIEWS = YES;
                 GENERATE_INFOPLIST_FILE = YES;
-                INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "iPlate needs Bluetooth access to connect with health devices for tracking your fitness data.";
-                INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "iPlate needs Bluetooth access to connect with health devices for tracking your fitness data.";
                 INFOPLIST_KEY_NSCameraUsageDescription = "iPlate needs camera access to take photos of your meals for nutritional analysis.";
                 INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "iPlate needs photo library access to select meal photos for nutritional analysis.";
                 INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -436,8 +434,8 @@
                 DEVELOPMENT_TEAM = FDU2SPU2Q5;
                 ENABLE_PREVIEWS = YES;
                 GENERATE_INFOPLIST_FILE = YES;
-                INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "iPlate needs Bluetooth access to connect with health devices for tracking your fitness data.";
-                INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "iPlate needs Bluetooth access to connect with health devices for tracking your fitness data.";
+                INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "iPlate needs bluetooth access to connect to devices.";
+                INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "iPlate needs bluetooth access to connect to devices.";
                 INFOPLIST_KEY_NSCameraUsageDescription = "iPlate needs camera access to take photos of your meals for nutritional analysis.";
                 INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "iPlate needs photo library access to select meal photos for nutritional analysis.";
                 INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

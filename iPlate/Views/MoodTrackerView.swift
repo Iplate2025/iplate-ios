@@ -569,7 +569,8 @@ struct MoodSuggestionsView: View {
     let errorMessage: String?
     let onContinue: () -> Void
 
-    @State private var likedSuggestions: Set<UUID> = []
+    @State private var likedFoodNames: Set<String> = []
+    @State private var isLoadingLikes = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -595,13 +596,9 @@ struct MoodSuggestionsView: View {
                         ForEach(suggestions) { suggestion in
                             FoodSuggestionCard(
                                 suggestion: suggestion,
-                                isLiked: likedSuggestions.contains(suggestion.id),
+                                isLiked: likedFoodNames.contains(suggestion.foodName),
                                 onLike: {
-                                    if likedSuggestions.contains(suggestion.id) {
-                                        likedSuggestions.remove(suggestion.id)
-                                    } else {
-                                        likedSuggestions.insert(suggestion.id)
-                                    }
+                                    toggleLike(foodName: suggestion.foodName)
                                 }
                             )
                         }
@@ -621,6 +618,55 @@ struct MoodSuggestionsView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
+        }
+        .onAppear {
+            fetchLikedFoods()
+        }
+    }
+    
+    private func fetchLikedFoods() {
+        // Use ProfileViewModel to keep state in sync
+        if ProfileViewModel.shared.likedFoods.isEmpty {
+            ProfileViewModel.shared.fetchLikedFoods()
+        }
+        
+        // Also fetch freshly here or rely on ViewModel
+        UserService.shared.fetchLikedFoods { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let likedFoods):
+                    likedFoodNames = Set(likedFoods.map { $0.food })
+                    // Sync with ViewModel
+                    ProfileViewModel.shared.likedFoods = likedFoods
+                case .failure(let error):
+                    print("❌ Failed to fetch liked foods: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func toggleLike(foodName: String) {
+        guard !isLoadingLikes else { return }
+        
+        let isCurrentlyLiked = likedFoodNames.contains(foodName)
+        isLoadingLikes = true
+        
+        // Use ProfileViewModel to handle API and State
+        ProfileViewModel.shared.toggleLikedFood(foodName) { success in
+            DispatchQueue.main.async {
+                isLoadingLikes = false
+                if success {
+                    if isCurrentlyLiked {
+                        likedFoodNames.remove(foodName)
+                        print("✅ Removed \(foodName) from liked foods")
+                    } else {
+                        likedFoodNames.insert(foodName)
+                        print("✅ Added \(foodName) to liked foods")
+                    }
+                } else {
+                    print("❌ Failed to toggle like for \(foodName)")
+                }
+            }
         }
     }
 }

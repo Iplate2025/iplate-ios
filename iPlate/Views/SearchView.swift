@@ -29,7 +29,7 @@
 //        guard let path = imagePath?.first, !path.isEmpty else { return nil }
 //        return URL(string: path)
 //    }
-//    
+//
 //    var protein: Double { proteinG ?? 0 }
 //    var carb: Double { carbG ?? 0 }
 //    var fat: Double { fatG ?? 0 }
@@ -482,11 +482,266 @@
 //    }
 //
 //    private func toggleFavorite(_ food: FoodItem) {
-//        if favorites.contains(food.foodCode) {
-//            favorites.remove(food.foodCode)
-//        } else {
-//            favorites.insert(food.foodCode)
+//        profileViewModel.toggleLikedFood(food.foodName)
+//    }
+//
+//    private func isFavorite(_ food: FoodItem) -> Bool {
+//        favorites.contains(food.foodName.lowercased())
+//    }
+//}
+//
+//// MARK: - Filter Type
+//enum NutrientFilter: String, CaseIterable {
+//    case protein = "Protein"
+//    case carbs = "Carbs"
+//    case fats = "Fats"
+//    case fibre = "Fibre"
+//}
+//
+//// MARK: - Search View
+//struct SearchView: View {
+//    @ObservedObject private var profileViewModel = ProfileViewModel.shared
+//    @State private var searchText = ""
+//    @State private var suggestedFoods: [FoodItem] = []
+//    @State private var featuredFoods: [FoodItem] = []
+//    @State private var searchResults: [FoodItem] = []
+//    @State private var isLoadingSuggestions = false
+//    @State private var isLoadingFeatured = false
+//    @State private var isSearching = false
+//    @State private var selectedFilter: NutrientFilter = .protein
+//    @State private var suggestedMealType: String? = nil
+//
+//    // Use ProfileViewModel for favorites
+//    private var favorites: Set<String> {
+//        Set(profileViewModel.likedFoods.map { $0.food.lowercased() })
+//    }
+//
+//    var body: some View {
+//        VStack(spacing: 0) {
+//            // Search Header
+//            HStack(spacing: 12) {
+//                Button(action: {}) {
+//                    Image(systemName: "arrow.left")
+//                        .font(.title2)
+//                        .foregroundColor(.primary)
+//                }
+//
+//                HStack {
+//                    Image(systemName: "magnifyingglass")
+//                        .foregroundColor(.gray)
+//                    TextField("Search", text: $searchText, onCommit: performSearch)
+//                        .autocapitalization(.none)
+//                        .disableAutocorrection(true)
+//                    if !searchText.isEmpty {
+//                        Button(action: { searchText = "" }) {
+//                            Image(systemName: "xmark.circle.fill")
+//                                .foregroundColor(.gray)
+//                        }
+//                    }
+//                }
+//                .padding(12)
+//                .background(Color(.systemGray6))
+//                .cornerRadius(12)
+//            }
+//            .padding(.horizontal)
+//            .padding(.top, 8)
+//
+//            ScrollView(showsIndicators: false) {
+//                VStack(alignment: .leading, spacing: 20) {
+//                    // Show search results if searching
+//                    if !searchText.isEmpty && !searchResults.isEmpty {
+//                        VStack(alignment: .leading, spacing: 12) {
+//                            Text("Search Results")
+//                                .font(.title2)
+//                                .fontWeight(.bold)
+//                                .padding(.horizontal)
+//
+//                            LazyVStack(spacing: 12) {
+//                                ForEach(searchResults) { food in
+//                                    FoodRowView(
+//                                        food: food,
+//                                        isFavorite: profileViewModel.isFoodLiked(food.foodName),
+//                                        onFavorite: { toggleFavorite(food) }
+//                                    )
+//                                }
+//                            }
+//                            .padding(.horizontal)
+//                        }
+//                    } else if isSearching {
+//                        ProgressView("Searching...")
+//                            .frame(maxWidth: .infinity)
+//                            .padding()
+//                    } else {
+//                        // Suggested Breakfast
+//                        VStack(alignment: .leading, spacing: 12) {
+//                            Text("Suggested \(suggestedMealType?.capitalized ?? "")")
+//                                .font(.title2)
+//                                .fontWeight(.bold)
+//                                .padding(.horizontal)
+//
+//                            if isLoadingSuggestions {
+//                                ProgressView()
+//                                    .frame(maxWidth: .infinity)
+//                                    .padding()
+//                            } else {
+//                                ScrollView(.horizontal, showsIndicators: false) {
+//                                    HStack(spacing: 12) {
+//                                        ForEach(suggestedFoods.prefix(5)) { food in
+//                                            SuggestedFoodCard(food: food)
+//                                        }
+//                                    }
+//                                    .padding(.horizontal)
+//                                }
+//                            }
+//                        }
+//
+//                        // Featured Food Section
+//                        VStack(alignment: .leading, spacing: 12) {
+//                            HStack {
+//                                Text("Featured Food")
+//                                    .font(.title2)
+//                                    .fontWeight(.bold)
+//
+//                                Spacer()
+//
+//                                Menu {
+//                                    ForEach(NutrientFilter.allCases, id: \.self) { filter in
+//                                        Button(action: {
+//                                            selectedFilter = filter
+//                                            fetchFeaturedFoods()
+//                                        }) {
+//                                            HStack {
+//                                                Text(filter.rawValue)
+//                                                if selectedFilter == filter {
+//                                                    Image(systemName: "checkmark")
+//                                                }
+//                                            }
+//                                        }
+//                                    }
+//                                } label: {
+//                                    HStack(spacing: 4) {
+//                                        Text(selectedFilter.rawValue)
+//                                            .font(.subheadline)
+//                                            .foregroundColor(.orange)
+//                                        Image(systemName: "chevron.down")
+//                                            .font(.caption)
+//                                            .foregroundColor(.orange)
+//                                    }
+//                                    .padding(.horizontal, 12)
+//                                    .padding(.vertical, 6)
+//                                    .background(Color.orange.opacity(0.1))
+//                                    .cornerRadius(8)
+//                                }
+//                            }
+//                            .padding(.horizontal)
+//
+//                            if isLoadingFeatured {
+//                                ProgressView()
+//                                    .frame(maxWidth: .infinity)
+//                                    .padding()
+//                            } else {
+//                                LazyVStack(spacing: 12) {
+//                                    ForEach(featuredFoods) { food in
+//                                        FoodRowView(
+//                                            food: food,
+//                                            isFavorite: favorites.contains(food.foodCode),
+//                                            onFavorite: { toggleFavorite(food) }
+//                                        )
+//                                    }
+//                                }
+//                                .padding(.horizontal)
+//                            }
+//                        }
+//                    }
+//
+//                    Spacer()
+//                        .frame(height: 20)
+//                }
+//            }
 //        }
+//        .background(Color(.systemGroupedBackground))
+//        .task {
+//            fetchSuggestedFoods()
+//            fetchFeaturedFoods()
+//        }
+//        .onChange(of: searchText) { _, newValue in
+//            if newValue.isEmpty {
+//                searchResults = []
+//            }
+//        }
+//    }
+//
+//    // MARK: - API Calls
+//    private func performSearch() {
+//        guard !searchText.isEmpty else { return }
+//        isSearching = true
+//
+//        SearchService.shared.searchFoods(query: searchText) { result in
+//            DispatchQueue.main.async {
+//                isSearching = false
+//                switch result {
+//                case .success(let foods):
+//                    searchResults = foods
+//                case .failure(let error):
+//                    print("Search error: \(error.localizedDescription)")
+//                    searchResults = []
+//                }
+//            }
+//        }
+//    }
+//
+//    private func fetchSuggestedFoods() {
+//        isLoadingSuggestions = true
+//
+//        SearchService.shared.suggestFoods { result in
+//            DispatchQueue.main.async {
+//                isLoadingSuggestions = false
+//                switch result {
+//                case .success(let response):
+//                    suggestedFoods = response.suggestions
+//                    suggestedMealType = response.mealType
+//                case .failure(let error):
+//                    print("Suggest error: \(error.localizedDescription)")
+//                }
+//            }
+//        }
+//    }
+//
+//    private func fetchFeaturedFoods() {
+//        isLoadingFeatured = true
+//
+//        let fetchFunction: (@escaping (Result<[FoodItem], Error>) -> Void) -> Void
+//
+//        switch selectedFilter {
+//        case .protein:
+//            fetchFunction = SearchService.shared.fetchTopProtein
+//        case .carbs:
+//            fetchFunction = SearchService.shared.fetchTopCarbs
+//        case .fats:
+//            fetchFunction = SearchService.shared.fetchTopFats
+//        case .fibre:
+//            fetchFunction = SearchService.shared.fetchTopFibre
+//        }
+//
+//        fetchFunction { result in
+//            DispatchQueue.main.async {
+//                isLoadingFeatured = false
+//                switch result {
+//                case .success(let foods):
+//                    featuredFoods = foods
+//                case .failure(let error):
+//                    print("Featured error: \(error.localizedDescription)")
+//                }
+//            }
+//        }
+//    }
+//
+//    private func toggleFavorite(_ food: FoodItem) {
+//        profileViewModel.toggleLikedFood(food.foodName)
+//    }
+//
+//    private func isFavorite(_ food: FoodItem) -> Bool {
+//        favorites.contains(food.foodName.lowercased())
 //    }
 //}
 //
@@ -629,13 +884,11 @@
 //}
 
 
-
-
 //-------------------------------------------------------------------------
 import SwiftUI
 
 // MARK: - Models
-struct FoodItem: Identifiable, Codable {
+struct FoodItem: Identifiable, Codable, Sendable {
     let id = UUID()
     let foodCode: String
     let foodName: String
@@ -658,6 +911,19 @@ struct FoodItem: Identifiable, Codable {
         case energyKj = "energy_kj"
         case imagePath = "image_path"
     }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        foodCode = try container.decode(String.self, forKey: .foodCode)
+        foodName = try container.decode(String.self, forKey: .foodName)
+        proteinG = try container.decodeIfPresent(Double.self, forKey: .proteinG)
+        carbG = try container.decodeIfPresent(Double.self, forKey: .carbG)
+        fatG = try container.decodeIfPresent(Double.self, forKey: .fatG)
+        fibreG = try container.decodeIfPresent(Double.self, forKey: .fibreG)
+        energyKcal = try container.decodeIfPresent(Double.self, forKey: .energyKcal)
+        energyKj = try container.decodeIfPresent(Double.self, forKey: .energyKj)
+        imagePath = try container.decodeIfPresent([String].self, forKey: .imagePath)
+    }
 
     var imageURL: URL? {
         guard let path = imagePath?.first, !path.isEmpty else { return nil }
@@ -671,7 +937,7 @@ struct FoodItem: Identifiable, Codable {
     var calories: Double { energyKcal ?? 0 }
 }
 
-struct SuggestFoodResponse: Codable {
+struct SuggestFoodResponse: Codable, Sendable {
     let count: Int
     let mealType: String
     let suggestions: [FoodItem]
@@ -681,12 +947,19 @@ struct SuggestFoodResponse: Codable {
         case mealType = "meal_type"
         case suggestions
     }
+    
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        count = try container.decode(Int.self, forKey: .count)
+        mealType = try container.decode(String.self, forKey: .mealType)
+        suggestions = try container.decode([FoodItem].self, forKey: .suggestions)
+    }
 }
 
-struct TopFoodsResponse: Codable {
-    let appliedBestTime: String
+struct TopFoodsResponse: Codable, Sendable {
+    let appliedBestTime: String?
     let count: Int
-    let dbBestTimeFilter: String
+    let dbBestTimeFilter: String?
     let items: [FoodItem]
     let userId: String
 
@@ -696,6 +969,15 @@ struct TopFoodsResponse: Codable {
         case dbBestTimeFilter = "db_best_time_filter"
         case items
         case userId = "user_id"
+    }
+    
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        appliedBestTime = try container.decodeIfPresent(String.self, forKey: .appliedBestTime)
+        count = try container.decode(Int.self, forKey: .count)
+        dbBestTimeFilter = try container.decodeIfPresent(String.self, forKey: .dbBestTimeFilter)
+        items = try container.decode([FoodItem].self, forKey: .items)
+        userId = try container.decode(String.self, forKey: .userId)
     }
 }
 
@@ -786,10 +1068,14 @@ class SearchService {
             do {
                 let decoder = JSONDecoder()
                 let response = try decoder.decode(SuggestFoodResponse.self, from: data)
-                completion(.success(response))
+                DispatchQueue.main.async {
+                    completion(.success(response))
+                }
             } catch {
                 print("Decoding error: \(error)")
-                completion(.failure(error))
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
             }
         }.resume()
     }
@@ -843,10 +1129,14 @@ class SearchService {
             do {
                 let decoder = JSONDecoder()
                 let response = try decoder.decode(TopFoodsResponse.self, from: data)
-                completion(.success(response.items))
+                DispatchQueue.main.async {
+                    completion(.success(response.items))
+                }
             } catch {
                 print("Decoding error for \(endpoint): \(error)")
-                completion(.failure(error))
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
             }
         }.resume()
     }
@@ -862,6 +1152,7 @@ enum NutrientFilter: String, CaseIterable {
 
 // MARK: - Search View
 struct SearchView: View {
+    @ObservedObject private var profileViewModel = ProfileViewModel.shared
     @State private var searchText = ""
     @State private var suggestedFoods: [FoodItem] = []
     @State private var featuredFoods: [FoodItem] = []
@@ -870,9 +1161,13 @@ struct SearchView: View {
     @State private var isLoadingFeatured = false
     @State private var isSearching = false
     @State private var selectedFilter: NutrientFilter = .protein
-    @State private var showFilterMenu = false
-    @State private var suggestedMealType = "breakfast"
-    @State private var favorites: Set<String> = []
+    @State private var suggestedMealType: String? = nil
+    @State private var showAllFeatured = false
+    
+    // Use ProfileViewModel for favorites - match by food name (lowercased)
+    private func isFoodLiked(_ foodName: String) -> Bool {
+        profileViewModel.likedFoods.contains { $0.food.lowercased() == foodName.lowercased() }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -918,7 +1213,7 @@ struct SearchView: View {
                                 ForEach(searchResults) { food in
                                     FoodRowView(
                                         food: food,
-                                        isFavorite: favorites.contains(food.foodCode),
+                                        isFavorite: isFoodLiked(food.foodName),
                                         onFavorite: { toggleFavorite(food) }
                                     )
                                 }
@@ -932,7 +1227,7 @@ struct SearchView: View {
                     } else {
                         // Suggested Breakfast
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Suggested \(suggestedMealType.capitalized)")
+                            Text("Suggested \(suggestedMealType?.capitalized ?? "")")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .padding(.horizontal)
@@ -945,7 +1240,11 @@ struct SearchView: View {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 12) {
                                         ForEach(suggestedFoods.prefix(5)) { food in
-                                            SuggestedFoodCard(food: food)
+                                            SuggestedFoodCard(
+                                                food: food,
+                                                onFavorite: { toggleFavorite(food) },
+                                                isFavorite: isFoodLiked(food.foodName)
+                                            )
                                         }
                                     }
                                     .padding(.horizontal)
@@ -999,15 +1298,30 @@ struct SearchView: View {
                                     .padding()
                             } else {
                                 LazyVStack(spacing: 12) {
-                                    ForEach(featuredFoods) { food in
+                                    ForEach(showAllFeatured ? featuredFoods : Array(featuredFoods.prefix(3))) { food in
                                         FoodRowView(
                                             food: food,
-                                            isFavorite: favorites.contains(food.foodCode),
+                                            isFavorite: isFoodLiked(food.foodName),
                                             onFavorite: { toggleFavorite(food) }
                                         )
                                     }
                                 }
                                 .padding(.horizontal)
+
+                                if !showAllFeatured && featuredFoods.count > 3 {
+                                    Button(action: {
+                                        withAnimation {
+                                            showAllFeatured = true
+                                        }
+                                    }) {
+                                        Text("more >")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 8)
+                                }
                             }
                         }
                     }
@@ -1019,6 +1333,7 @@ struct SearchView: View {
         }
         .background(Color(.systemGroupedBackground))
         .task {
+            profileViewModel.fetchLikedFoods()
             fetchSuggestedFoods()
             fetchFeaturedFoods()
         }
@@ -1026,6 +1341,9 @@ struct SearchView: View {
             if newValue.isEmpty {
                 searchResults = []
             }
+        }
+        .onChange(of: selectedFilter) { _, _ in
+            showAllFeatured = false
         }
     }
 
@@ -1095,57 +1413,65 @@ struct SearchView: View {
     }
 
     private func toggleFavorite(_ food: FoodItem) {
-        if favorites.contains(food.foodCode) {
-            favorites.remove(food.foodCode)
-        } else {
-            favorites.insert(food.foodCode)
-        }
+        profileViewModel.toggleLikedFood(food.foodName)
     }
 }
 
 // MARK: - Suggested Food Card
 struct SuggestedFoodCard: View {
     let food: FoodItem
+    let onFavorite: () -> Void
+    let isFavorite: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            AsyncImage(url: food.imageURL) { phase in
-                switch phase {
-                case .empty:
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 140, height: 100)
-                        .overlay(ProgressView())
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 140, height: 100)
-                        .clipped()
-                case .failure:
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 140, height: 100)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(.gray)
-                        )
-                @unknown default:
-                    EmptyView()
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                AsyncImage(url: food.imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 140, height: 100)
+                            .overlay(ProgressView())
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 140, height: 100)
+                            .clipped()
+                    case .failure:
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 140, height: 100)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(.gray)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
+                .frame(width: 140, height: 100)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                Text(food.foodName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .frame(width: 140, alignment: .leading)
+
+                Text("\(Int(food.calories)) cal")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .frame(width: 140, height: 100)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Text(food.foodName)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .lineLimit(2)
-                .frame(width: 140, alignment: .leading)
-
-            Text("\(Int(food.calories)) cal")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Button(action: onFavorite) {
+                Image(systemName: isFavorite ? "heart.fill" : "heart")
+                    .foregroundColor(isFavorite ? .red : .white)
+                    .padding(6)
+                    .background(Circle().fill(Color.black.opacity(0.3)))
+            }
+            .padding(8)
         }
         .frame(width: 140)
     }
@@ -1160,7 +1486,7 @@ struct FoodRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             // Food Image
-            ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topTrailing) {
                 AsyncImage(url: food.imageURL) { phase in
                     switch phase {
                     case .empty:
@@ -1188,12 +1514,12 @@ struct FoodRowView: View {
                 // Favorite Button
                 Button(action: onFavorite) {
                     Image(systemName: isFavorite ? "heart.fill" : "heart")
-                        .font(.system(size: 16))
+                        .font(.system(size: 14))
                         .foregroundColor(isFavorite ? .red : .white)
                         .padding(4)
                         .background(Circle().fill(Color.black.opacity(0.3)))
                 }
-                .offset(x: 4, y: 4)
+                .offset(x: -4, y: 4)
             }
 
             // Food Details
@@ -1275,7 +1601,7 @@ struct FoodRowView: View {
 //        guard let path = imagePath?.first, !path.isEmpty else { return nil }
 //        return URL(string: path)
 //    }
-//    
+//
 //    var protein: Double { proteinG ?? 0 }
 //    var carb: Double { carbG ?? 0 }
 //    var fat: Double { fatG ?? 0 }

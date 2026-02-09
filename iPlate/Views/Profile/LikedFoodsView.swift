@@ -36,20 +36,36 @@ struct LikedFoodCard: View {
     let onUnlike: () -> Void
     
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 0) {
             // Food Image
             if let imageUrl = food.imageUrl?.replacingOccurrences(of: "{", with: "").replacingOccurrences(of: "}", with: ""),
                let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color(.systemGray5))
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .frame(height: 180)
+                            .overlay(ProgressView())
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 180)
+                            .clipped()
+                    case .failure:
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .frame(height: 180)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.gray)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
-                .frame(height: 180)
-                .clipped()
             } else {
                 Rectangle()
                     .fill(Color(.systemGray5))
@@ -61,21 +77,19 @@ struct LikedFoodCard: View {
                     )
             }
             
-            // Gradient overlay
-            LinearGradient(
-                gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 80)
-            .frame(maxHeight: .infinity, alignment: .bottom)
-            
-            // Food info
-            HStack {
+            // Food Details
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(food.food)
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    /* Calories not available in API response yet
+                    Text("200 cal")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    */
                 }
                 
                 Spacer()
@@ -88,7 +102,8 @@ struct LikedFoodCard: View {
             }
             .padding()
         }
+        .background(Color(.systemBackground))
         .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
 }
