@@ -52,11 +52,8 @@ struct HomeView: View {
     private let goalFiber: Double = 40
 
     private var userName: String {
-        // Use username or email from ProfileViewModel
-        if let username = profileViewModel.username, !username.isEmpty {
-            return username.capitalized
-        }
-        return profileViewModel.email?.components(separatedBy: "@").first?.capitalized ?? "User"
+        // Use ProfileViewModel's displayName which handles priority: userName -> email prefix -> "User"
+        return profileViewModel.displayName
     }
 
     private var greeting: String {
@@ -68,6 +65,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Background color
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
@@ -86,6 +84,7 @@ struct HomeView: View {
                     homeContent
                 }
             }
+            .padding(.bottom, 60) // Space for tab bar
 
             // Custom Tab Bar with centered FAB
             CustomTabBar(
@@ -151,6 +150,7 @@ struct HomeView: View {
             })
         }
         .task {
+            profileViewModel.fetchUsername()
             fetchMeals(for: Date())
         }
         .fullScreenCover(isPresented: $goToLogin) {
@@ -928,45 +928,53 @@ struct CustomTabBar: View {
     let onAddTapped: () -> Void
 
     var body: some View {
-        ZStack {
-            // Background
-            HStack(spacing: 0) {
-                TabBarButton(icon: "house.fill", title: "Home", isSelected: selectedTab == 0) {
-                    selectedTab = 0
-                }
-                TabBarButton(icon: "chart.line.uptrend.xyaxis", title: "Analytics", isSelected: selectedTab == 1) {
-                    selectedTab = 1
-                }
+        VStack(spacing: 0) {
+            // Shadow line at top
+            Rectangle()
+                .fill(Color(.systemGray4).opacity(0.5))
+                .frame(height: 0.5)
+            
+            ZStack {
+                // Tab buttons
+                HStack(spacing: 0) {
+                    TabBarButton(icon: "house.fill", title: "Home", isSelected: selectedTab == 0) {
+                        selectedTab = 0
+                    }
+                    TabBarButton(icon: "chart.line.uptrend.xyaxis", title: "Analytics", isSelected: selectedTab == 1) {
+                        selectedTab = 1
+                    }
 
-                // Space for FAB
-                Color.clear
-                    .frame(width: 80)
+                    // Space for FAB
+                    Color.clear
+                        .frame(width: 80)
 
-                TabBarButton(icon: "magnifyingglass", title: "Search", isSelected: selectedTab == 2) {
-                    selectedTab = 2
+                    TabBarButton(icon: "magnifyingglass", title: "Search", isSelected: selectedTab == 2) {
+                        selectedTab = 2
+                    }
+                    TabBarButton(icon: "person.fill", title: "Profile", isSelected: selectedTab == 3) {
+                        selectedTab = 3
+                    }
                 }
-                TabBarButton(icon: "person.fill", title: "Profile", isSelected: selectedTab == 3) {
-                    selectedTab = 3
+                .frame(height: 50)
+
+                // Floating Action Button
+                Button(action: onAddTapped) {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 64, height: 64)
+                        .overlay(
+                            Image(systemName: "plus")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(.white)
+                        )
+                        .shadow(color: .orange.opacity(0.4), radius: 8, y: 4)
                 }
+                .offset(y: -20)
             }
-            .frame(height: 60)
-            .background(Color(.systemBackground))
-            .shadow(color: .black.opacity(0.08), radius: 8, y: -4)
-
-            // Floating Action Button
-            Button(action: onAddTapped) {
-                Circle()
-                    .fill(Color.orange)
-                    .frame(width: 64, height: 64)
-                    .overlay(
-                        Image(systemName: "plus")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundColor(.white)
-                    )
-                    .shadow(color: .orange.opacity(0.4), radius: 8, y: 4)
-            }
-            .offset(y: -20)
+            .padding(.top, 5)
         }
+        .background(Color(.systemBackground))
+        .edgesIgnoringSafeArea(.bottom)
     }
 }
 

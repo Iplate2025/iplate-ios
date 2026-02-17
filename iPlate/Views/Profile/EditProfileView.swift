@@ -101,8 +101,14 @@ struct EditProfileView: View {
         
         switch field {
         case .userName:
-            viewModel.userName = editValue
-            UserDefaults.standard.set(editValue, forKey: "userName")
+            // Call API to set username in database
+            viewModel.setUsername(editValue) { success in
+                if success {
+                    print("✅ Username updated successfully via API")
+                } else {
+                    print("❌ Failed to update username via API")
+                }
+            }
         case .height:
             let numericValue = editValue.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
             if let height = Double(numericValue) {

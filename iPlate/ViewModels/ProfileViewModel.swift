@@ -136,6 +136,13 @@ final class ProfileViewModel: ObservableObject {
                 switch result {
                 case .success(let details):
                     self?.userDetails = details
+                    // Extract username if present in user details
+                    if let username = details.username, !username.isEmpty {
+                        self?.userName = username
+                        self?.username = username
+                        UserDefaults.standard.set(username, forKey: "userName")
+                        print("✅ Username from user details: \(username)")
+                    }
                 case .failure(let error):
                     self?.errorMessage = error.localizedDescription
                 }
@@ -246,5 +253,94 @@ final class ProfileViewModel: ObservableObject {
         } else {
             addLikedFood(foodName, completion: completion)
         }
+    }
+    
+    // MARK: - Set Username
+    func setUsername(_ newUsername: String, completion: @escaping (Bool) -> Void) {
+        guard let userId = self.userId else {
+            errorMessage = "User ID not found"
+            completion(false)
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        AuthService.shared.setUsername(userId: userId, username: newUsername) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+                
+                switch result {
+                case .success(let json):
+                    if let username = json["username"] as? String {
+                        self?.userName = username
+                        self?.username = username
+                        UserDefaults.standard.set(username, forKey: "userName")
+                        print("✅ Username updated to: \(username)")
+                        completion(true)
+                    } else {
+                        self?.errorMessage = "Invalid response from server"
+                        completion(false)
+                    }
+                case .failure(let error):
+                    self?.errorMessage = error.localizedDescription
+                    print("❌ Failed to set username: \(error.localizedDescription)")
+                    completion(false)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Fetch Username (from database using GET)
+    func fetchUsername(completion: ((Bool) -> Void)? = nil) {
+        guard let userId = self.userId, let email = self.email else {
+            print("⚠️ User ID or email not found for fetching username")
+            completion?(false)
+            return
+        }
+        
+        print("🔄 Fetching username from database for user: \(userId)")
+        
+        // GET /auth/set_username with X-User-ID and X-User-Email headers
+        AuthService.shared.getUsername(userId: userId, email: email) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let json):
+                    if let username = json["username"] as? String, !username.isEmpty {
+                        self?.userName = username
+                        self?.username = username
+                        UserDefaults.standard.set(username, forKey: "userName")
+                        print("✅ Fetched username from database: \(username)")
+                        completion?(true)
+                    } else {
+                        // No username in response
+                        print("⚠️ No username set for this user in database")
+                        self?.userName = nil
+                        self?.username = nil
+                        completion?(false)
+                    }
+                case .failure(let error):
+                    print("❌ Failed to fetch username from database: \(error.localizedDescription)")
+                    completion?(false)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Get Display Name
+    var displayName: String {
+        // Priority: userName -> email prefix -> "User"
+        if let username = userName, !username.isEmpty {
+            return username
+        }
+        if let emailPrefix = email?.components(separatedBy: "@").first {
+            return emailPrefix.capitalized
+        }
+        return "User"
+    }
+    
+    // MARK: - Check if username is set
+    var hasUsername: Bool {
+        return userName != nil && !userName!.isEmpty
     }
 }

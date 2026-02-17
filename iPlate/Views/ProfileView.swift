@@ -35,6 +35,10 @@ struct ProfileView: View {
                             .multilineTextAlignment(.center)
                             .padding(.top, 8)
                     }
+                    
+                    // Extra space at bottom to clear tab bar
+                    Spacer()
+                        .frame(height: 80)
                 }
                 .padding()
             }
@@ -42,6 +46,7 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
+                viewModel.fetchUsername()
                 viewModel.fetchUserDetails()
                 viewModel.fetchUserGoals()
                 viewModel.fetchLikedFoods()
@@ -60,7 +65,7 @@ struct ProfileView: View {
                     .fill(Color.orange.opacity(0.2))
                     .frame(width: 100, height: 100)
                     .overlay(
-                        Text(String(viewModel.userName?.prefix(1).uppercased() ?? "U"))
+                        Text(String(viewModel.displayName.prefix(1).uppercased()))
                             .font(.system(size: 40, weight: .medium))
                             .foregroundColor(.orange)
                     )
@@ -75,7 +80,7 @@ struct ProfileView: View {
                     )
             }
 
-            Text(viewModel.userName ?? "User")
+            Text(viewModel.displayName)
                 .font(.title2)
                 .fontWeight(.semibold)
 

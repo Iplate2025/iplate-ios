@@ -432,5 +432,116 @@ final class AuthService {
         }.resume()
     }
 
+    // MARK: - Set Username
+    // POST /auth/set_username { user_id, username }
+    func setUsername(
+        userId: String,
+        username: String,
+        completion: @escaping (Result<[String: Any], Error>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseURL)/set_username") else {
+            completion(.failure(authError("Invalid set_username URL")))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = ["user_id": userId, "username": username]
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(self.authError("No data from set_username")))
+                return
+            }
+
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[AuthService.setUsername] raw response:", txt)
+            }
+
+            // Check HTTP status
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200...299).contains(httpResponse.statusCode) {
+                let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+                completion(.failure(self.authError("Username update failed: \(errorMsg)")))
+                return
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                completion(.success(json))
+            } else {
+                completion(.failure(self.authError("Invalid set_username response")))
+            }
+        }.resume()
+    }
+
+    // MARK: - Get Username
+    // GET /auth/get_username with X-User-ID and X-User-Email headers
+    // Returns: { "user_id": "...", "username": "..." }
+    func getUsername(
+        userId: String,
+        email: String,
+        completion: @escaping (Result<[String: Any], Error>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseURL)/get_username") else {
+            completion(.failure(authError("Invalid get_username URL")))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue(userId, forHTTPHeaderField: "X-User-ID")
+        request.addValue(email, forHTTPHeaderField: "X-User-Email")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        print("[AuthService.getUsername] Requesting: GET \(url.absoluteString)")
+        print("[AuthService.getUsername] Headers: X-User-ID=\(userId), X-User-Email=\(email)")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("[AuthService.getUsername] Network error: \(error.localizedDescription)")
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(self.authError("No data from get_username")))
+                return
+            }
+
+            if let txt = String(data: data, encoding: .utf8) {
+                print("[AuthService.getUsername] Response: \(txt)")
+            }
+
+            if let httpResponse = response as? HTTPURLResponse {
+                print("[AuthService.getUsername] HTTP status: \(httpResponse.statusCode)")
+                
+                if !(200...299).contains(httpResponse.statusCode) {
+                    let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+                    completion(.failure(self.authError("Get username failed: \(errorMsg)")))
+                    return
+                }
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                completion(.success(json))
+            } else {
+                completion(.failure(self.authError("Invalid get_username response")))
+            }
+        }.resume()
+    }
+
 }
 

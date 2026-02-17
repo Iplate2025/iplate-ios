@@ -1330,7 +1330,7 @@ struct SearchView: View {
                     }
 
                     Spacer()
-                        .frame(height: 20)
+                        .frame(height: 80)
                 }
             }
         }

@@ -32,59 +32,44 @@ struct AnalyticsView: View {
     @State private var isLoadingMacros = false
     @State private var isLoadingWeight = false
     
-    // Tab bar
-    @State private var selectedTab = 1
-    @State private var showUploadSheet = false
-    
     enum TimePeriod: String, CaseIterable {
         case week = "Week"
         case month = "Month"
     }
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Analytics")
+                    .font(.title.bold())
+                
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
             
-            VStack(spacing: 0) {
-                // Header
-                HStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    // Calorie Chart Card
+                    calorieChartCard
                     
-                    Text("Analytics")
-                        .font(.title.bold())
+                    // Macros Card
+                    macrosCard
                     
-                    Spacer()
+                    // Suggestion Card
+                    suggestionCard
+                    
+                    // Weight Chart Card
+                    weightChartCard
+                    
+                    Spacer().frame(height: 100)
                 }
                 .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        // Calorie Chart Card
-                        calorieChartCard
-                        
-                        // Macros Card
-                        macrosCard
-                        
-                        // Suggestion Card
-                        suggestionCard
-                        
-                        // Weight Chart Card
-                        weightChartCard
-                        
-                        Spacer().frame(height: 100)
-                    }
-                    .padding(.horizontal)
-                }
             }
-            
-            // Custom Tab Bar
-            CustomTabBar(
-                selectedTab: $selectedTab,
-                onAddTapped: { showUploadSheet = true }
-            )
         }
+        .background(Color(.systemGroupedBackground))
         .navigationBarHidden(true)
         .task {
             await loadAllData()
