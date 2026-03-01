@@ -52,7 +52,7 @@ struct AgeInputView: View {
         VStack {
             // Top row: step indicator + Skip
             HStack {
-                Text("2 of 6").foregroundColor(.gray)
+                Text("2 of 7").foregroundColor(.gray)
                 Spacer()
                 Button(action: { markOnboardCompleteAndExit() }) {
                     Text("Skip")
@@ -62,11 +62,11 @@ struct AgeInputView: View {
             .padding(.horizontal)
             .padding(.top, 12)
 
-            // Progress capsules (6 total)
-            HStack(spacing: 8) {
-                ForEach(0..<6) { idx in
+            // Progress capsules (7 total)
+            HStack(spacing: 6) {
+                ForEach(0..<7) { idx in
                     Capsule()
-                        .frame(width: 36, height: 8)
+                        .frame(width: 30, height: 8)
                         .foregroundColor(idx <= 1 ? Color.orange : Color.gray.opacity(0.25))
                 }
             }
@@ -157,7 +157,7 @@ struct AgeInputView: View {
         .background(Color.white.ignoresSafeArea())
         // destination after continue
         .fullScreenCover(isPresented: $goNext) {
-            DietPreferenceView()
+            GenderInputView()
         }
         .fullScreenCover(isPresented: $goHome) {
             HomeView()
@@ -179,22 +179,29 @@ struct AgeInputView: View {
             return
         }
 
-        // Prepare details payload — adjust key names to your backend if required
-        let details: [String:Any] = [
+        // Store locally for final step
+        OnboardingData.shared.dateOfBirth = dob
+
+        // Try both field names - server may use "dob" or "date_of_birth"
+        let details: [String: Any] = [
+            "dob": dob,
             "date_of_birth": dob
         ]
 
+        print("📤 Sending DOB payload: \(details)")
+
         vm.updateUserDetails(userId: userId, userEmail: userEmail, details: details) { result in
-            switch result {
-            case .success:
-                // mark onboarding progress (you can choose to mark only at final step,
-                // but we mark per step's temp flag here if you want)
-                UserDefaults.standard.setValue(dob, forKey: "onboard_dob_\(userId)")
-                // move to next onboarding view
-                self.goNext = true
-            case .failure(let err):
-                print("updateUserDetails failed:", err.localizedDescription)
-                vm.infoMessage = "❌ \(err.localizedDescription)"
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    print("✅ DOB saved successfully: \(dob)")
+                    UserDefaults.standard.setValue(dob, forKey: "onboard_dob_\(self.userId)")
+                    self.goNext = true
+                case .failure(let err):
+                    print("❌ updateUserDetails (DOB) failed: \(err.localizedDescription)")
+                    // Navigate forward anyway so onboarding is not blocked
+                    self.goNext = true
+                }
             }
         }
     }

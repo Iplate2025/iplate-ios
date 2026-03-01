@@ -74,19 +74,35 @@ final class OnboardingAPI {
         request.addValue(userId, forHTTPHeaderField: "X-User-ID")
         request.addValue(userEmail, forHTTPHeaderField: "X-User-Email")
 
-        do { request.httpBody = try JSONSerialization.data(withJSONObject: details) } catch {
+        do {
+            let bodyData = try JSONSerialization.data(withJSONObject: details)
+            request.httpBody = bodyData
+            // Log what we're sending
+            if let bodyStr = String(data: bodyData, encoding: .utf8) {
+                print("[OnboardingAPI] PUT /user/details payload: \(bodyStr)")
+            }
+        } catch {
             completion(.failure(error)); return
         }
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let e = error { completion(.failure(e)); return }
             guard let data = data else { completion(.failure(self.makeError("No data from user/details"))); return }
-            if let http = response as? HTTPURLResponse {
-                print("[OnboardingAPI] status:", http.statusCode)
-                print("[OnboardingAPI] headers:", http.allHeaderFields)
-            }
+
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("[OnboardingAPI] PUT /user/details status: \(statusCode)")
+
             if let txt = String(data: data, encoding: .utf8) {
-                print("[OnboardingAPI] raw body:", txt)
+                print("[OnboardingAPI] PUT /user/details body: \(txt)")
+            }
+
+            // Treat 4xx/5xx as failure
+            if statusCode >= 400 {
+                let errMsg = (try? JSONSerialization.jsonObject(with: data) as? [String:Any])?
+                    .flatMap { $0["error"] as? String ?? $0["message"] as? String }
+                    ?? "Server error \(statusCode)"
+                completion(.failure(self.makeError(errMsg)))
+                return
             }
 
             if let dict = self.jsonDataToDictionary(data) {

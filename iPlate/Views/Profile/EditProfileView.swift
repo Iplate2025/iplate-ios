@@ -37,7 +37,7 @@ struct EditProfileView: View {
                 
                 editRow(field: .height, value: formatHeight())
                 editRow(field: .weight, value: formatWeight())
-                editRow(field: .sex, value: viewModel.sex ?? "")
+                editRow(field: .sex, value: viewModel.userDetails?.sex ?? viewModel.sex ?? "")
                 editRow(field: .dateOfBirth, value: formatDateOfBirth())
                 editRow(field: .units, value: viewModel.units)
             }
@@ -88,6 +88,18 @@ struct EditProfileView: View {
     }
     
     private func formatDateOfBirth() -> String {
+        // First try from API userDetails
+        if let dobStr = viewModel.userDetails?.dob, !dobStr.isEmpty {
+            let inFmt = DateFormatter()
+            inFmt.dateFormat = "yyyy-MM-dd"
+            if let date = inFmt.date(from: dobStr) {
+                let outFmt = DateFormatter()
+                outFmt.dateFormat = "MMM d, yyyy"
+                return outFmt.string(from: date)
+            }
+            return dobStr
+        }
+        // Fall back to local dateOfBirth
         if let dob = viewModel.dateOfBirth {
             let formatter = DateFormatter()
             formatter.dateFormat = "MMM d, yyyy"
@@ -120,11 +132,19 @@ struct EditProfileView: View {
                 viewModel.updateUserDetails(["weight_kg": weight])
             }
         case .sex:
+            if !editValue.isEmpty {
+                viewModel.updateUserDetails(["sex": editValue])
+            }
             viewModel.updateLocalProfile(dateOfBirth: nil, sex: editValue, units: nil)
         case .dateOfBirth:
             let formatter = DateFormatter()
             formatter.dateFormat = "MMM d, yyyy"
             if let date = formatter.date(from: editValue) {
+                // Also send to API in yyyy-MM-dd format
+                let apiFmt = DateFormatter()
+                apiFmt.dateFormat = "yyyy-MM-dd"
+                let dobStr = apiFmt.string(from: date)
+                viewModel.updateUserDetails(["dob": dobStr, "date_of_birth": dobStr])
                 viewModel.updateLocalProfile(dateOfBirth: date, sex: nil, units: nil)
             }
         case .units:

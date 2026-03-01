@@ -22,7 +22,7 @@ struct NameInputView: View {
     var body: some View {
         VStack {
             HStack {
-                Text("1 of 6").foregroundColor(.gray)
+                Text("1 of 7").foregroundColor(.gray)
                 Spacer()
                 Button("Skip") {
                     markOnboardCompleteAndGoHome()
@@ -33,10 +33,10 @@ struct NameInputView: View {
             .padding(.top, 12)
 
             // progress small capsules
-            HStack(spacing: 8) {
-                ForEach(0..<6) { idx in
+            HStack(spacing: 6) {
+                ForEach(0..<7) { idx in
                     Capsule()
-                        .frame(width: 36, height: 8)
+                        .frame(width: 30, height: 8)
                         .foregroundColor(idx == 0 ? Color.orange : Color.gray.opacity(0.25))
                 }
             }

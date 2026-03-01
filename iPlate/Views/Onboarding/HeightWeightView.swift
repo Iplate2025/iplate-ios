@@ -34,7 +34,7 @@ struct HeightWeightView: View {
 
             // TOP BAR
             HStack {
-                Text("5 of 6")
+                Text("6 of 7")
                     .foregroundColor(.gray)
 
                 Spacer()
@@ -48,11 +48,11 @@ struct HeightWeightView: View {
             .padding(.top, 12)
 
             // PROGRESS CAPSULES
-            HStack(spacing: 8) {
-                ForEach(0..<6) { i in
+            HStack(spacing: 6) {
+                ForEach(0..<7) { i in
                     Capsule()
-                        .frame(width: 36, height: 8)
-                        .foregroundColor(i <= 4 ? .orange : Color.gray.opacity(0.3))
+                        .frame(width: 30, height: 8)
+                        .foregroundColor(i <= 5 ? .orange : Color.gray.opacity(0.3))
                 }
             }
             .padding(.horizontal)

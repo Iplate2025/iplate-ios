@@ -12,6 +12,8 @@ import Foundation
 struct UserDetails: Codable {
     var userId: String?
     var username: String?
+    var dob: String?          // API field: "dob"
+    var sex: String?          // API field: "sex"
     var allergens: String?
     var diet: String?
     var heightCm: Double?
@@ -26,10 +28,12 @@ struct UserDetails: Codable {
     var eveningSnackEnd: String?
     var dinnerStart: String?
     var dinnerEnd: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case username
+        case dob
+        case sex
         case allergens, diet
         case heightCm = "height_cm"
         case weightKg = "weight_kg"

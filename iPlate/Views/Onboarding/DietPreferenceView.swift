@@ -40,7 +40,7 @@ struct DietPreferenceView: View {
         VStack {
             // Top row: step label + Skip
             HStack {
-                Text("3 of 6").foregroundColor(.gray)
+                Text("4 of 7").foregroundColor(.gray)
                 Spacer()
                 Button(action: { skipTapped() }) {
                     Text("Skip")
@@ -50,12 +50,12 @@ struct DietPreferenceView: View {
             .padding(.horizontal)
             .padding(.top, 12)
 
-            // Progress capsules (6 total, highlight first 3)
-            HStack(spacing: 8) {
-                ForEach(0..<6) { idx in
+            // Progress capsules (7 total, highlight first 4)
+            HStack(spacing: 6) {
+                ForEach(0..<7) { idx in
                     Capsule()
-                        .frame(width: 36, height: 8)
-                        .foregroundColor(idx <= 2 ? Color.orange : Color.gray.opacity(0.25))
+                        .frame(width: 30, height: 8)
+                        .foregroundColor(idx <= 3 ? Color.orange : Color.gray.opacity(0.25))
                 }
             }
             .padding(.horizontal)

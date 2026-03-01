@@ -1,29 +1,37 @@
 import SwiftUI
 
 struct MealTimingView: View {
-    // default times
-    @State private var breakfastTime: Date = {
-        var comps = DateComponents(); comps.hour = 8; comps.minute = 0
-        return Calendar.current.date(from: comps) ?? Date()
-    }()
-    @State private var lunchTime: Date = {
-        var comps = DateComponents(); comps.hour = 12; comps.minute = 30
-        return Calendar.current.date(from: comps) ?? Date()
-    }()
-    @State private var dinnerTime: Date = {
-        var comps = DateComponents(); comps.hour = 19; comps.minute = 30
-        return Calendar.current.date(from: comps) ?? Date()
-    }()
+
+    // Breakfast default: 08:00 AM
+    @State private var breakfastHour = 8
+    @State private var breakfastMinute = 0
+    @State private var breakfastAmPm = "AM"
+
+    // Lunch default: 12:30 PM
+    @State private var lunchHour = 12
+    @State private var lunchMinute = 30
+    @State private var lunchAmPm = "PM"
+
+    // Dinner default: 07:30 PM
+    @State private var dinnerHour = 7
+    @State private var dinnerMinute = 30
+    @State private var dinnerAmPm = "PM"
 
     @StateObject private var vm = OnboardingViewModel()
     @State private var isSaving = false
     @State private var infoMessage = ""
     @State private var goToHome = false
 
+    private let hours = Array(1...12)
+    private let minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+    private let amPmOptions = ["AM", "PM"]
+
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
+
+            // Top bar
             HStack {
-                Text("6 of 6")
+                Text("7 of 7")
                     .foregroundColor(.gray)
                     .font(.subheadline)
                 Spacer()
@@ -34,30 +42,53 @@ struct MealTimingView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.top, 12)
 
-            // Progress bar
-            HStack(spacing: 8) {
-                ForEach(0..<6) { _ in
+            // Progress bar - all orange (last step)
+            HStack(spacing: 6) {
+                ForEach(0..<7) { _ in
                     Capsule()
                         .fill(Color.orange)
                         .frame(height: 8)
                 }
             }
             .padding(.horizontal, 20)
+            .padding(.top, 8)
 
+            // Title
             Text("Tell us your Meal Timings!")
                 .font(.title2.bold())
                 .foregroundColor(.black)
                 .padding(.horizontal, 20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 20)
 
-            VStack(spacing: 14) {
-                timeRow(title: "Breakfast", date: $breakfastTime)
-                timeRow(title: "Lunch", date: $lunchTime)
-                timeRow(title: "Dinner", date: $dinnerTime)
+            VStack(spacing: 20) {
+                // Breakfast
+                timePickerRow(
+                    title: "Breakfast",
+                    hour: $breakfastHour,
+                    minute: $breakfastMinute,
+                    amPm: $breakfastAmPm
+                )
+
+                // Lunch
+                timePickerRow(
+                    title: "Lunch",
+                    hour: $lunchHour,
+                    minute: $lunchMinute,
+                    amPm: $lunchAmPm
+                )
+
+                // Dinner
+                timePickerRow(
+                    title: "Dinner",
+                    hour: $dinnerHour,
+                    minute: $dinnerMinute,
+                    amPm: $dinnerAmPm
+                )
             }
             .padding(.horizontal, 20)
+            .padding(.top, 16)
 
             if !infoMessage.isEmpty {
                 Text(infoMessage)
@@ -65,30 +96,32 @@ struct MealTimingView: View {
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
+                    .padding(.top, 8)
             }
 
             Spacer()
 
-            Button(action: finalizeOnboarding) {
+            // Continue button - bottom right like other onboarding steps
+            HStack {
+                Spacer()
                 if isSaving {
                     ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange.opacity(0.8))
-                        .cornerRadius(25)
+                        .padding(.trailing, 18)
+                        .padding(.bottom, 24)
                 } else {
-                    Text("Continue")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(25)
+                    Button(action: finalizeOnboarding) {
+                        Text("Continue")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 26)
+                            .background(Color.orange)
+                            .cornerRadius(22)
+                    }
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 24)
                 }
             }
-            .disabled(isSaving)
-            .padding(.horizontal, 44)
-            .padding(.bottom, 24)
         }
         .background(Color.white.ignoresSafeArea())
         .fullScreenCover(isPresented: $goToHome) {
@@ -96,30 +129,124 @@ struct MealTimingView: View {
         }
     }
 
-    // MARK: - UI helper
-    private func timeRow(title: String, date: Binding<Date>) -> some View {
-        
+    // MARK: - Time Picker Row UI
+    @ViewBuilder
+    private func timePickerRow(
+        title: String,
+        hour: Binding<Int>,
+        minute: Binding<Int>,
+        amPm: Binding<String>
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .fontWeight(.medium)
+                .fontWeight(.semibold)
+                .foregroundColor(.black)
 
-            DatePicker("", selection: date, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-                .padding()
-                .frame(height: 48)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
+            HStack(spacing: 8) {
+                // Hour picker
+                Menu {
+                    ForEach(hours, id: \.self) { h in
+                        Button(String(format: "%02d", h)) { hour.wrappedValue = h }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(String(format: "%02d", hour.wrappedValue))
+                            .foregroundColor(.black)
+                            .fontWeight(.medium)
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+                    )
+                }
+
+                // Colon separator
+                Text(":")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundColor(.black)
+
+                // Minute picker
+                Menu {
+                    ForEach(minutes, id: \.self) { m in
+                        Button(String(format: "%02d", m)) { minute.wrappedValue = m }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(String(format: "%02d", minute.wrappedValue))
+                            .foregroundColor(.black)
+                            .fontWeight(.medium)
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+                    )
+                }
+
+                // AM/PM picker
+                Menu {
+                    ForEach(amPmOptions, id: \.self) { option in
+                        Button(option) { amPm.wrappedValue = option }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(amPm.wrappedValue)
+                            .foregroundColor(.black)
+                            .fontWeight(.medium)
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+                    )
+                }
+            }
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Convert to 24hr time string
+    private func to24Hour(_ hour: Int, _ minute: Int, _ amPm: String) -> String {
+        var h = hour
+        if amPm == "AM" {
+            if h == 12 { h = 0 }
+        } else {
+            if h != 12 { h += 12 }
+        }
+        return String(format: "%02d:%02d:00", h, minute)
+    }
 
-    /// ✅ Skip = leave onboarding WITHOUT completing it
+    // MARK: - Add 1 hour to a 24hr time string (end time = start time + 1 hour)
+    private func toEndTime(_ startTime: String) -> String {
+        let parts = startTime.split(separator: ":").map { Int($0) ?? 0 }
+        guard parts.count >= 2 else { return startTime }
+        var endHour = (parts[0] + 1) % 24   // wrap around midnight
+        let endMinute = parts[1]
+        return String(format: "%02d:%02d:00", endHour, endMinute)
+    }
+
+    // MARK: - Skip
     private func skipOnboarding() {
         goToHome = true
     }
 
-    /// ✅ Final step = ONLY place onboarding is completed
+    // MARK: - Finalize
     private func finalizeOnboarding() {
         guard
             let userId = ProfileViewModel.shared.userID,
@@ -132,25 +259,50 @@ struct MealTimingView: View {
         isSaving = true
         infoMessage = "Saving profile..."
 
-        let fmt = DateFormatter()
-        fmt.dateFormat = "HH:mm:ss"
-
         let data = OnboardingData.shared
 
-        let details: [String: Any] = [
-            "diet": data.diet ?? "",
-            "allergens": data.allergies.joined(separator: ","),
-            "height_cm": data.heightCm ?? 0,
-            "weight_kg": data.weightKg ?? 0,
-            "breakfast_start": fmt.string(from: breakfastTime),
-            "breakfast_end": fmt.string(from: breakfastTime),
-            "lunch_start": fmt.string(from: lunchTime),
-            "lunch_end": fmt.string(from: lunchTime),
-            "dinner_start": fmt.string(from: dinnerTime),
-            "dinner_end": fmt.string(from: dinnerTime)
+        let breakfastStr = to24Hour(breakfastHour, breakfastMinute, breakfastAmPm)
+        let lunchStr     = to24Hour(lunchHour, lunchMinute, lunchAmPm)
+        let dinnerStr    = to24Hour(dinnerHour, dinnerMinute, dinnerAmPm)
+
+        // End time = start time + 1 hour
+        let breakfastEndStr = toEndTime(breakfastStr)
+        let lunchEndStr     = toEndTime(lunchStr)
+        let dinnerEndStr    = toEndTime(dinnerStr)
+
+        // Always include meal timings
+        var details: [String: Any] = [
+            "breakfast_start": breakfastStr,
+            "breakfast_end":   breakfastEndStr,
+            "lunch_start":     lunchStr,
+            "lunch_end":       lunchEndStr,
+            "dinner_start":    dinnerStr,
+            "dinner_end":      dinnerEndStr
         ]
 
-        // Username is optional but supported
+        // Only include optional fields if they have valid values
+        if let diet = data.diet, !diet.isEmpty {
+            details["diet"] = diet
+        }
+        let allergenStr = data.allergies.joined(separator: ",")
+        if !allergenStr.isEmpty {
+            details["allergens"] = allergenStr
+        }
+        // Only send height/weight if > 0 to avoid "Invalid height/weight" error
+        if let height = data.heightCm, height > 0 {
+            details["height_cm"] = height
+        }
+        if let weight = data.weightKg, weight > 0 {
+            details["weight_kg"] = weight
+        }
+        if let gender = data.gender, !gender.isEmpty {
+            details["sex"] = gender
+        }
+        if let dob = data.dateOfBirth, !dob.isEmpty {
+            details["dob"] = dob
+            details["date_of_birth"] = dob
+        }
+
         if let username = data.username, !username.isEmpty {
             vm.setUsername(userId: userId, username: username) { _ in
                 saveDetails(userId: userId, email: userEmail, details: details)
@@ -164,19 +316,18 @@ struct MealTimingView: View {
         vm.updateUserDetails(userId: userId, userEmail: email, details: details) { result in
             DispatchQueue.main.async {
                 isSaving = false
-
                 switch result {
                 case .success:
-                    // ✅ FINAL STEP → MARK ONBOARDING COMPLETE (BACKEND)
+                    print("✅ Meal timings saved. Completing onboarding...")
                     completeOnboardingAndProceed()
-
                 case .failure(let error):
+                    print("❌ saveDetails failed: \(error.localizedDescription)")
                     infoMessage = error.localizedDescription
                 }
             }
         }
     }
-    /// ✅ Marks onboarding complete in backend
+
     private func completeOnboardingAndProceed() {
         guard let token = ProfileViewModel.shared.sessionToken else {
             infoMessage = "Session expired. Please login again."
@@ -187,16 +338,15 @@ struct MealTimingView: View {
             DispatchQueue.main.async {
                 switch result {
                 case .success(true):
+                    print("✅ Onboarding complete. Going home...")
                     goToHome = true
-
                 case .success(false):
                     infoMessage = "Onboarding not completed. Please try again."
-
                 case .failure(let error):
+                    print("❌ completeOnboarding failed: \(error.localizedDescription)")
                     infoMessage = error.localizedDescription
                 }
             }
         }
     }
-
 }

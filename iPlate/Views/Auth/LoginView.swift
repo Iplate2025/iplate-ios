@@ -247,12 +247,22 @@ struct LoginView: View {
 
                 case .success(let json):
 
-                    if let message = json["message"] as? String,
-                       message.lowercased().contains("active session") {
+                    // ✅ Detect "already_logged_in_elsewhere" error code
+                    let errorCode = json["error"] as? String ?? ""
+                    let message = json["message"] as? String ?? ""
+
+                    let isAlreadyLoggedInElsewhere =
+                        errorCode == "already_logged_in_elsewhere" ||
+                        message.lowercased().contains("already signed in") ||
+                        message.lowercased().contains("active session") ||
+                        message.lowercased().contains("another device")
+
+                    if isAlreadyLoggedInElsewhere {
 
                         // prevent infinite retry loop
                         guard !didRetryLogoutAll else {
                             infoMessage = "Unable to resolve active session. Please try again later."
+                            didRetryLogoutAll = false
                             return
                         }
 
@@ -263,16 +273,21 @@ struct LoginView: View {
 
                         didRetryLogoutAll = true
                         infoMessage = "Logging out from other devices..."
+                        print("🔄 Detected login conflict for user: \(userId). Logging out all sessions...")
 
+                        // Automatically logout all sessions and retry — no alert needed
                         AuthService.shared.logoutAllSessions(userId: userId) { result in
                             DispatchQueue.main.async {
                                 switch result {
                                 case .success:
-                                    print("✅ All other sessions terminated. Retrying login…")
-                                    handleLogin()   // retry login ONCE
+                                    print("✅ All other sessions terminated. Retrying login...")
+                                    self.infoMessage = "Other sessions terminated. Logging in..."
+                                    self.handleLogin() // retry login ONCE
 
                                 case .failure(let error):
-                                    infoMessage = error.localizedDescription
+                                    print("❌ Failed to logout all sessions: \(error.localizedDescription)")
+                                    self.infoMessage = "❌ Could not terminate other sessions. Please try again."
+                                    self.didRetryLogoutAll = false
                                 }
                             }
                         }
@@ -290,30 +305,27 @@ struct LoginView: View {
                         return
                     }
 
-                    if let message = json["message"] as? String {
-                        let lower = message.lowercased()
-                        if lower.contains("not verified") ||
-                           lower.contains("verify your email") ||
-                           lower.contains("unverified") {
-                            self.infoMessage = "⚠️ \(message)"
-                            self.presentNotVerifiedAlert()
-                            return
-                        }
+                    let lower = message.lowercased()
+                    if lower.contains("not verified") ||
+                       lower.contains("verify your email") ||
+                       lower.contains("unverified") {
+                        self.infoMessage = "⚠️ \(message)"
+                        self.presentNotVerifiedAlert()
+                        return
                     }
 
                     var didSucceed = false
 
                     if let success = json["success"] as? Bool {
                         didSucceed = success
-                    } else if let message = json["message"] as? String {
-                        let lower = message.lowercased()
+                    } else {
                         didSucceed = lower.contains("success") ||
                                      lower.contains("logged in") ||
                                      lower.contains("welcome")
                     }
 
                     if !didSucceed {
-                        if let message = json["message"] as? String {
+                        if !message.isEmpty {
                             self.infoMessage = "❌ \(message)"
                         } else {
                             self.infoMessage = "❌ Login failed. Please check your credentials."

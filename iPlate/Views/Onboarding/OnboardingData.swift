@@ -13,6 +13,8 @@ final class OnboardingData {
 
     // Filled during onboarding steps
     var username: String? = nil
+    var dateOfBirth: String? = nil
+    var gender: String? = nil
     var diet: String? = nil
     var allergies: [String] = []
     var heightCm: Double? = nil
@@ -20,6 +22,8 @@ final class OnboardingData {
 
     func clear() {
         username = nil
+        dateOfBirth = nil
+        gender = nil
         diet = nil
         allergies = []
         heightCm = nil

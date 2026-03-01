@@ -38,7 +38,7 @@ struct AllergyPreferenceView: View {
         VStack {
             // Top: step label + Skip
             HStack {
-                Text("4 of 6")
+                Text("5 of 7")
                     .foregroundColor(.gray)
                 Spacer()
                 Button(action: { skipTapped() }) {
@@ -50,11 +50,11 @@ struct AllergyPreferenceView: View {
             .padding(.top, 12)
 
             // Progress capsules
-            HStack(spacing: 8) {
-                ForEach(0..<6) { idx in
+            HStack(spacing: 6) {
+                ForEach(0..<7) { idx in
                     Capsule()
-                        .frame(width: 36, height: 8)
-                        .foregroundColor(idx <= 3 ? Color.orange : Color.gray.opacity(0.25))
+                        .frame(width: 30, height: 8)
+                        .foregroundColor(idx <= 4 ? Color.orange : Color.gray.opacity(0.25))
                 }
             }
             .padding(.horizontal)
